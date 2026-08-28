@@ -152,3 +152,52 @@ export const maxAngularGap = (cards: Card[]): number => {
   }
   return gap;
 };
+
+/**
+ * 将来の重なりを予測する刻み数。
+ *
+ * **固定数にしてはいけない。** 速度をばらすと、速い札が遅い札を
+ * サンプルとサンプルの間で通り抜ける（14 点固定・最も密な条件で、
+ * 90 秒あたり 30 回の重なり、最大めり込み 7.7%）。
+ * 1 ステップの相対移動量が判定距離の 40% を超えないところまで刻む。
+ *
+ * vRel の 2 は ease-out の瞬間速度が平均の最大 2 倍になることから来ている。
+ */
+export const predictSteps = (a: Card, b: Card, horizon: number, margin: number) => {
+  const vRel = 2 * (a.speed + b.speed);
+  const lim = (a.rho + b.rho) * margin;
+  const n = Math.ceil((horizon * vRel) / (0.4 * lim));
+  return n < 8 ? 8 : n > 600 ? 600 : n;
+};
+
+/**
+ * a と b が、これから horizon 秒のあいだに判定距離まで近づくか。
+ *
+ * 判定は外接円だけで行う。札の向き(orientation)を切り替えても
+ * 当たり判定の形が変わらない ── 向きごとに形を変えると、切り替えるたびに
+ * 重なり保証が壊れる。
+ *
+ * margin は「予測側の判定円を実際より大きく取る」ための倍率。
+ * 距離がしきい値をわずかに下回ってすぐ戻る「かすり」は、1 ステップ内の
+ * 距離変化量そのものが小さいので、どれだけ刻んでも網に掛からない。
+ * 刻みでは漸近的にしか消えず、正しい直し方はこちら。
+ */
+export const willCollide = (
+  a: Card,
+  b: Card,
+  t: number,
+  horizon: number,
+  margin: number,
+) => {
+  if (horizon <= 0) return false;
+  const lim = (a.rho + b.rho) * margin;
+  const steps = predictSteps(a, b, horizon, margin);
+
+  for (let i = 0; i <= steps; i++) {
+    const tt = t + (horizon * i) / steps;
+    const pa = positionAt(a, tt);
+    const pb = positionAt(b, tt);
+    if (Math.hypot(pa.x - pb.x, pa.y - pb.y) < lim) return true;
+  }
+  return false;
+};
