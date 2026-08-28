@@ -235,6 +235,22 @@ export type Emitter = {
 };
 
 /**
+ * `undefined` のプロパティを取り除いたコピーを返す。
+ *
+ * `{ ...DEFAULTS, ...opts }` は、明示的な `undefined` にも既定値を上書きさせてしまう
+ * （例: `speed: undefined` → 内部で NaN 化し、`progressAt` が NaN を返して札が死ななくなり、
+ * `willCollide` の距離判定も NaN になって衝突が一切検出されなくなる）。
+ * スプレッドの前にここを通し、undefined のキーは既定値へフォールバックさせる。
+ */
+const dropUndefined = (opts: BurstOptions): BurstOptions => {
+  const out: BurstOptions = {};
+  for (const [k, v] of Object.entries(opts)) {
+    if (v !== undefined) (out as Record<string, unknown>)[k] = v;
+  }
+  return out;
+};
+
+/**
  * 札を産み続けるエミッタ。
  *
  * 角度は黄金角 137.5° の通し番号で出す。将来重なるなら棄却して次の候補へ進むが、
@@ -245,7 +261,7 @@ export type Emitter = {
  * 状態を持たない黄金角のほうが単純で、既存コードとも同じ語彙。
  */
 export const createBurst = (opts: BurstOptions = {}): Emitter => {
-  const o = { ...DEFAULTS, ...opts };
+  const o = { ...DEFAULTS, ...dropUndefined(opts) };
   const rand = makeRandom(opts.seed ?? 1);
 
   const cards: Card[] = [];

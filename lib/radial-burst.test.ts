@@ -362,6 +362,51 @@ test('同じシードなら、いつ回しても同じ結果になる', () => {
   assert.deepEqual(once, twice);
 });
 
+test('全オプションを明示的に undefined にしても、無指定と同じ結果になる（undefined が既定値を潰さない）', () => {
+  // `{ ...DEFAULTS, ...opts }` は明示的な undefined にも既定値を上書きさせる。
+  // speed が undefined だと NaN が伝播し、札が死なず・衝突も検出されなくなる
+  // （progressAt が NaN を返し続け、willCollide の距離判定も NaN になるため）。
+  // ここでは全キーを undefined にして、無指定と完全に同じ挙動になることを見る。
+  const bare = createBurst({ seed: 9 });
+  const allUndefined = createBurst({
+    seed: 9,
+    speed: undefined,
+    speedJitter: undefined,
+    spawnInterval: undefined,
+    cardSize: undefined,
+    cardJitter: undefined,
+    reachMin: undefined,
+    reachMax: undefined,
+    margin: undefined,
+    angleJitterDeg: undefined,
+    maxCandidates: undefined,
+    variants: undefined,
+    persist: undefined,
+  });
+
+  const seconds = 30;
+  for (let i = 0; i < Math.round(seconds / DT); i++) {
+    bare.step(DT);
+    allUndefined.step(DT);
+  }
+
+  // 前提: このテストが無意味に両方 0 のまま通ってしまわないことを確認
+  assert.ok(bare.stats.spawned > 100, `発生が少なすぎる: ${bare.stats.spawned}`);
+
+  assert.deepEqual(
+    allUndefined.stats,
+    bare.stats,
+    `stats が一致しない: undefined 版 ${JSON.stringify(allUndefined.stats)} / ` +
+      `無指定 ${JSON.stringify(bare.stats)}。undefined が既定値を上書きしていないか？`,
+  );
+  assert.equal(
+    allUndefined.cards.length,
+    bare.cards.length,
+    `生存枚数が一致しない: undefined 版 ${allUndefined.cards.length} / 無指定 ${bare.cards.length}`,
+  );
+  assert.deepEqual(allUndefined.cards, bare.cards);
+});
+
 test('棄却は起きるが、全滅して発生が止まることはない', () => {
   const burst = createBurst({ seed: 1 });
   for (let i = 0; i < Math.round(30 / DT); i++) burst.step(DT);
@@ -456,6 +501,10 @@ test('seq の不変量: seq === stats.rejected + stats.spawned（seq の全経�
     },
   ];
 
+  // 角度比較の相対しきい値。per-card / aggregate の両方でこの 1 つを使う
+  // （旧: 1e-9 と 1e-10 が特に理由なく 10 倍ずれていた）。
+  const ANGLE_REL_TOL = 1e-9;
+
   for (const cond of conditions) {
     const burst = createBurst(cond.opts);
     const seen = new Set<number>();
@@ -469,22 +518,27 @@ test('seq の不変量: seq === stats.rejected + stats.spawned（seq の全経�
         seen.add(c.id);
 
         // 生まれた直後の stats から期待角度を計算
-        // 採用札の seq は (rejected + spawned - 1) 番目
+        // 採用札の seq は (rejected + spawned - 1) 番目。
+        // 実装と同じ算術経路（deg を経て rad へ）で期待値を組み立て、rad のまま比較する。
+        // deg→rad→deg と往復させると、実装は %360 も rad→deg もしていないのに
+        // テスト側だけが持ち込む誤差が seq の大きさ（≒実行時間）に比例して育ってしまう。
         const expectedSeq = burst.stats.rejected + burst.stats.spawned - 1;
-        const expectedDeg = (expectedSeq * GOLDEN_ANGLE_DEG) % 360;
-        const actualDeg = ((c.angle * 180) / Math.PI) % 360;
+        const expectedDeg = expectedSeq * GOLDEN_ANGLE_DEG;
+        const expectedAngle = (expectedDeg * Math.PI) / 180;
 
-        // 360° で正規化した差（360° は 0° と同じ）
-        let drift = Math.abs(actualDeg - expectedDeg);
-        if (drift > 180) drift = 360 - drift;
+        const drift = Math.abs(c.angle - expectedAngle);
+        // 絶対誤差ではなく相対誤差で判定する。実行時間を延ばして期待値の絶対値が
+        // 大きくなっても、しきい値そのものは劣化しない。
+        const relDrift = drift / Math.max(Math.abs(expectedAngle), 1);
 
-        maxAngleDrift.push(drift);
+        maxAngleDrift.push(relDrift);
 
         // 条件分岐なし。毎回必ず実行される表明
         assert.ok(
-          drift < 1e-9,
+          relDrift < ANGLE_REL_TOL,
           `${cond.name}: id=${c.id} の角度が期待値と異なる。` +
-            `期待 ${expectedDeg.toFixed(11)}°、実際 ${actualDeg.toFixed(11)}°、ずれ ${drift.toFixed(2)}e-10°。` +
+            `期待 ${expectedAngle.toFixed(9)}rad、実際 ${c.angle.toFixed(9)}rad、` +
+            `相対ずれ ${relDrift.toExponential(2)}（しきい値 ${ANGLE_REL_TOL.toExponential(0)}）。` +
             `rejected=${burst.stats.rejected}, spawned=${burst.stats.spawned}。` +
             `seq += i + 1 または seq += maxCandidates が正しく実装されていないか？`,
         );
@@ -525,12 +579,12 @@ test('seq の不変量: seq === stats.rejected + stats.spawned（seq の全経�
       );
     }
 
-    // 最大ずれの統計情報
+    // 最大ずれの統計情報。しきい値は per-card の判定と同じ ANGLE_REL_TOL を使う。
     if (maxAngleDrift.length > 0) {
       const maxDrift = Math.max(...maxAngleDrift);
       assert.ok(
-        maxDrift < 1e-10,
-        `${cond.name}: 最大ずれが大きい: ${maxDrift.toFixed(2)}e-10°`,
+        maxDrift < ANGLE_REL_TOL,
+        `${cond.name}: 最大の相対ずれが大きい: ${maxDrift.toExponential(2)}（しきい値 ${ANGLE_REL_TOL.toExponential(0)}）`,
       );
     }
   }

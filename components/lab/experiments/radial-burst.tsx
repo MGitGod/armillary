@@ -24,14 +24,18 @@ const NS = 'http://www.w3.org/2000/svg';
  * （既存 spec「小さく描く SVG は線幅と重ね描きで消える」の教訓）。
  *
  * 種類数は lib 側の DEFAULTS.variants (= 6) と揃えること。
+ *
+ * 6 つとも引数は定数なので、モジュール読み込み時に 1 度だけ計算して文字列で持つ。
+ * rosePath / lissajousPath / polygonPath は純粋関数で DOM に触れないので、
+ * モジュールスコープでの評価は安全（札を作るたびに ~5KB のパス文字列を作り直していた）。
  */
-const FIGURES: Array<() => string> = [
-  () => rosePath(3, FIG, 480, 0.5),
-  () => rosePath(5, FIG, 480, 0.5),
-  () => rosePath(2, FIG, 480, 1),
-  () => lissajousPath(3, 2, Math.PI / 2, FIG, 480),
-  () => lissajousPath(5, 4, Math.PI / 4, FIG, 480),
-  () => polygonPath(6, FIG, 120),
+const FIGURES: string[] = [
+  rosePath(3, FIG, 480, 0.5),
+  rosePath(5, FIG, 480, 0.5),
+  rosePath(2, FIG, 480, 1),
+  lissajousPath(3, 2, Math.PI / 2, FIG, 480),
+  lissajousPath(5, 4, Math.PI / 4, FIG, 480),
+  polygonPath(6, FIG, 120),
 ];
 
 /**
@@ -46,7 +50,7 @@ const makeFace = (variant: number): SVGSVGElement => {
   svg.setAttribute('height', '100%');
 
   const path = document.createElementNS(NS, 'path');
-  path.setAttribute('d', FIGURES[variant % FIGURES.length]());
+  path.setAttribute('d', FIGURES[variant % FIGURES.length]);
   path.setAttribute('fill', 'none');
   path.setAttribute('stroke', 'currentColor');
   path.setAttribute('stroke-width', '1.1');
