@@ -5,6 +5,7 @@ import {
   FADE_IN_END,
   FADE_OUT_START,
   GOLDEN_ANGLE_DEG,
+  createBurst,
   easeOut,
   makeRandom,
   maxAngularGap,
@@ -244,4 +245,172 @@ test('margin は、判定円を実際より大きく取る倍率として効く'
   // 判定円が最接近より小さければ通り、大きければ弾かれる
   assert.equal(willCollide(a, b, t, horizon, (minD / touch) * 0.9), false);
   assert.equal(willCollide(a, b, t, horizon, (minD / touch) * 1.5), true);
+});
+
+// --- 5 シード × 120 秒の実測。設計中に使った測定をそのまま回帰テストにする ---
+
+const DT = 1 / 60;
+const DURATION = 120;
+const SEEDS = [1, 2, 3, 4, 5];
+/**
+ * 立ち上がりを統計から外す秒数。
+ * 最初の数秒は札が 0〜1 枚しか居らず、maxAngularGap が 360° を返す（正しい答えだが、
+ * 定常状態の偏りを測る目的には合わない）。同時枚数も立ち上がりのぶん低く出る。
+ */
+const WARMUP = 10;
+
+type Survey = {
+  live: number;
+  overlaps: number;
+  worstOverlap: number;
+  gapMean: number;
+  gapWorst: number;
+  rate: number;
+};
+
+/**
+ * 1 シードぶん回して実測を集める。
+ * 重なりは予測ではなく**外接円の実距離**で見る（margin を掛けない）。
+ * 予測器で予測器を検算しても意味がないため。
+ */
+const survey = (seed: number): Survey => {
+  const burst = createBurst({ seed });
+  const steps = Math.round(DURATION / DT);
+  const warm = Math.round(WARMUP / DT);
+  let frames = 0;
+  let sumLive = 0;
+  let overlaps = 0;
+  let worstOverlap = 0;
+  let sumGap = 0;
+  let gapWorst = 0;
+
+  for (let i = 0; i < steps; i++) {
+    burst.step(DT);
+    const t = burst.time;
+    const cards = burst.cards;
+    if (i < warm) continue;
+    frames++;
+    sumLive += cards.length;
+
+    for (let a = 0; a < cards.length; a++) {
+      for (let b = a + 1; b < cards.length; b++) {
+        const pa = positionAt(cards[a], t);
+        const pb = positionAt(cards[b], t);
+        const lim = cards[a].rho + cards[b].rho;
+        const d = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+        if (d < lim) {
+          overlaps++;
+          const bite = (lim - d) / lim;
+          if (bite > worstOverlap) worstOverlap = bite;
+        }
+      }
+    }
+
+    const gap = maxAngularGap(cards);
+    sumGap += gap;
+    if (gap > gapWorst) gapWorst = gap;
+  }
+
+  return {
+    live: sumLive / frames,
+    overlaps,
+    worstOverlap,
+    gapMean: sumGap / frames,
+    gapWorst,
+    // 発生率だけは立ち上がりも含めた全区間で見る（発生は最初から一定間隔で走るため）
+    rate: burst.stats.spawned / DURATION,
+  };
+};
+
+const results = SEEDS.map(survey);
+const avg = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
+
+test('5 シード × 120 秒で、札どうしの重なりは 1 度も起きない', () => {
+  const total = results.reduce((n, r) => n + r.overlaps, 0);
+  const worst = Math.max(...results.map((r) => r.worstOverlap));
+  assert.equal(
+    total,
+    0,
+    `重なり ${total} 回、最大めり込み ${(worst * 100).toFixed(2)}%。` +
+      ' margin を下げたか、予測の刻み数を固定にしていないか確認する',
+  );
+});
+
+test('角度の最大の空きが、棄却なしの一様乱数より明確に小さい', () => {
+  const mean = avg(results.map((r) => r.gapMean));
+  const worst = Math.max(...results.map((r) => r.gapWorst));
+  // 設計時の実測は 平均 59.8° / 最悪 144.6°。この計画を書いた時点で
+  // 同じアルゴリズムを回すと 平均 60.2° / 最悪 140.7° になる。
+  // 参考: 完全等配置 27.9°、棄却なしの一様乱数 83.8° / 189.2°。
+  assert.ok(mean < 70, `平均の空き ${mean.toFixed(1)}° が 70° を超えた`);
+  assert.ok(worst < 170, `最悪の空き ${worst.toFixed(1)}° が 170° を超えた`);
+});
+
+test('発生率と同時枚数が設計値どおり', () => {
+  const rate = avg(results.map((r) => r.rate));
+  const live = avg(results.map((r) => r.live));
+  // 設計時の実測は 5.0 枚/秒・同時 12.9 枚。この計画を書いた時点で
+  // 同じアルゴリズムを回すと 4.77 枚/秒・同時 12.83 枚になる。
+  // 帯から外れたら帯を広げず、原因を調べること（設計書の数値が契約）。
+  assert.ok(rate > 4.5 && rate < 5.6, `発生率 ${rate.toFixed(2)} 枚/秒`);
+  assert.ok(live > 11.5 && live < 14.5, `同時 ${live.toFixed(2)} 枚`);
+});
+
+test('同じシードなら、いつ回しても同じ結果になる', () => {
+  const once = survey(3);
+  const twice = survey(3);
+  assert.deepEqual(once, twice);
+});
+
+test('棄却は起きるが、全滅して発生が止まることはない', () => {
+  const burst = createBurst({ seed: 1 });
+  for (let i = 0; i < Math.round(30 / DT); i++) burst.step(DT);
+  // 棄却が 1 度も起きないなら、予測が働いていない
+  assert.ok(burst.stats.rejected > 0, '棄却が 1 度も起きていない');
+  // 全部の候補が弾かれて 1 枚も出ない、という状態にはならない
+  assert.ok(burst.stats.spawned > 100, `30 秒で ${burst.stats.spawned} 枚しか出ていない`);
+  assert.ok(
+    burst.stats.skipped < burst.stats.spawned * 0.35,
+    `見送りが多すぎる: 発生 ${burst.stats.spawned} / 見送り ${burst.stats.skipped}`,
+  );
+});
+
+test('出発半径は自分の外接円の半径で、到達半径は 0.5〜1.0 に収まる', () => {
+  const burst = createBurst({ seed: 2 });
+  const seen: Card[] = [];
+  for (let i = 0; i < Math.round(20 / DT); i++) {
+    burst.step(DT);
+    for (const c of burst.cards) if (!seen.some((s) => s.id === c.id)) seen.push(c);
+  }
+  assert.ok(seen.length > 60);
+  for (const c of seen) {
+    assert.ok(Math.abs(c.rho - (c.size * Math.SQRT2) / 2) < 1e-12, 'rho が外接円ではない');
+    assert.ok(Math.abs(c.r0 - c.rho) < 1e-12, '出発半径が外接円の半径ではない');
+    assert.ok(c.r1 >= 0.5 && c.r1 <= 1, `到達半径が範囲外: ${c.r1}`);
+    assert.ok(c.size >= 0.13 * 0.8 - 1e-12 && c.size <= 0.13 * 1.2 + 1e-12);
+    assert.ok(c.speed >= 0.26 * 0.6 - 1e-12 && c.speed <= 0.26 * 1.4 + 1e-12);
+    assert.ok(c.variant >= 0 && c.variant < DEFAULTS.variants);
+    assert.equal(c.persist, false);
+  }
+});
+
+test('大きな dt が来ても、溜めを一気に吐き出さない', () => {
+  // タブが止まって戻ってきた状況。1 フレームで何十枚も湧いたら見た目が壊れる。
+  const burst = createBurst({ seed: 4 });
+  burst.step(DT);
+  const before = burst.cards.length;
+  burst.step(5);
+  assert.ok(
+    burst.cards.length - before <= 1,
+    `5 秒ぶんの dt で ${burst.cards.length - before} 枚湧いた`,
+  );
+});
+
+test('persist: true の札は消えず、外周に溜まり続ける', () => {
+  const burst = createBurst({ seed: 1, persist: true });
+  for (let i = 0; i < Math.round(10 / DT); i++) burst.step(DT);
+  assert.ok(burst.cards.length > 10, `${burst.cards.length} 枚しか残っていない`);
+  // 1 枚も死んでいない
+  assert.equal(burst.cards.length, burst.stats.spawned);
+  assert.ok(burst.cards.every((c) => c.persist === true));
 });

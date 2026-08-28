@@ -201,3 +201,142 @@ export const willCollide = (
   }
   return false;
 };
+
+export type BurstOptions = {
+  /** 省略すると 1。テストで列を再現するために使う。 */
+  seed?: number;
+  speed?: number;
+  speedJitter?: number;
+  spawnInterval?: number;
+  cardSize?: number;
+  cardJitter?: number;
+  reachMin?: number;
+  reachMax?: number;
+  margin?: number;
+  angleJitterDeg?: number;
+  maxCandidates?: number;
+  variants?: number;
+  /**
+   * true にすると札が消えない（作品版）。
+   * 札が溜まり続けるので「時間とともに空く」前提が崩れる。
+   * **重なり保証は未検証。** 作品版を作るときに別途設計が要る。
+   */
+  persist?: boolean;
+};
+
+export type Emitter = {
+  /** 生きている札。step() が破壊的に更新する、同じ配列。 */
+  cards: Card[];
+  /** 経過時刻(s)。 */
+  time: number;
+  stats: { spawned: number; rejected: number; skipped: number };
+  /** dt 秒進める。呼び出し側で dt を丸めておくこと（タブ復帰の巨大な delta 対策）。 */
+  step(dt: number): void;
+};
+
+/**
+ * 札を産み続けるエミッタ。
+ *
+ * 角度は黄金角 137.5° の通し番号で出す。将来重なるなら棄却して次の候補へ進むが、
+ * **棄却しても通し番号は進める** ── 次の候補は黄金角ぶん先なので、棄却が分布を歪めない。
+ *
+ * 「いま最大の隙間の真ん中を狙う」方式も測ったが、平均で 7% しか良くならず
+ * 最悪値ではむしろ負けた（最大の隙間を埋めに行くと 2 番目が放置される）。
+ * 状態を持たない黄金角のほうが単純で、既存コードとも同じ語彙。
+ */
+export const createBurst = (opts: BurstOptions = {}): Emitter => {
+  const o = { ...DEFAULTS, ...opts };
+  const rand = makeRandom(opts.seed ?? 1);
+
+  const cards: Card[] = [];
+  const stats = { spawned: 0, rejected: 0, skipped: 0 };
+
+  /** 黄金角の通し番号。棄却しても進める。 */
+  let seq = 0;
+  let nextId = 0;
+  let nextSpawn = 0;
+
+  /** 行程が終わる時刻。persist でも「動きが止まる」時刻としては同じ。 */
+  const travelEnd = (c: Card) => c.born + c.life;
+
+  const emitter: Emitter = {
+    cards,
+    time: 0,
+    stats,
+    step(dt: number) {
+      emitter.time += dt;
+      const t = emitter.time;
+
+      // 死ぬ札を先に外す。空いた場所を同じフレームの新入りが使えるようにする。
+      for (let i = cards.length - 1; i >= 0; i--) {
+        if (!cards[i].persist && progressAt(cards[i], t) >= 1) cards.splice(i, 1);
+      }
+
+      if (t < nextSpawn) return;
+
+      // --- 候補を 1 枚こしらえる ---
+      // 角度以外は候補ごとに引き直さない。棄却の理由を角度だけに絞るため。
+      const size = o.cardSize * (1 + (rand() * 2 - 1) * o.cardJitter);
+      const rho = (size * Math.SQRT2) / 2;
+      const r1 = o.reachMin + rand() * (o.reachMax - o.reachMin);
+      const speed = o.speed * (1 + (rand() * 2 - 1) * o.speedJitter);
+      const variant = Math.floor(rand() * o.variants);
+      const life = Math.max(0, r1 - rho) / speed;
+
+      let placed: Card | null = null;
+
+      for (let i = 0; i < o.maxCandidates; i++) {
+        const deg = (seq + i) * GOLDEN_ANGLE_DEG + (rand() * 2 - 1) * o.angleJitterDeg;
+        const cand: Card = {
+          id: nextId,
+          angle: (deg * Math.PI) / 180,
+          r0: rho,
+          r1,
+          size,
+          rho,
+          speed,
+          born: t,
+          life,
+          variant,
+          persist: o.persist,
+        };
+
+        let hit = false;
+        for (const other of cards) {
+          // どちらかが消えたら、もう重なりようがない。
+          // persist なら消えないので、両方が止まるまで見る（止まれば位置は変わらない）。
+          const end = o.persist
+            ? Math.max(travelEnd(cand), travelEnd(other))
+            : Math.min(travelEnd(cand), travelEnd(other));
+          if (willCollide(cand, other, t, end - t, o.margin)) {
+            hit = true;
+            break;
+          }
+        }
+
+        if (!hit) {
+          seq += i + 1; // 採用した候補の次から続ける
+          placed = cand;
+          break;
+        }
+        stats.rejected++;
+      }
+
+      if (placed) {
+        cards.push(placed);
+        nextId++;
+        stats.spawned++;
+      } else {
+        seq += o.maxCandidates;
+        stats.skipped++;
+      }
+
+      nextSpawn += o.spawnInterval;
+      // タブが止まっていた等で大きく遅れたら、溜めを吐き出さずに現在へ合わせる。
+      // 1 フレームで何十枚も湧くと見た目が壊れる。
+      if (nextSpawn < t) nextSpawn = t + o.spawnInterval;
+    },
+  };
+
+  return emitter;
+};
