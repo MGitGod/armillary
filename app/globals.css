@@ -1,0 +1,47 @@
+/* Tailwind v4 はこの 1 行がエントリポイント。
+   旧 v3 の @tailwind base/components/utilities は v4 では
+   theme(デザイントークン)と preflight(リセット)を一切生成しない。 */
+@import "tailwindcss";
+
+/* next/font が発行する CSS 変数をデザイントークンに接続する。
+   これで font-sans / font-serif ユーティリティと preflight の既定フォントが揃う。
+   日本語は latin サブセットに含まれないため、フォールバックに和文フェイスを積んでおく。 */
+@theme {
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, "Hiragino Sans",
+    "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --font-serif: var(--font-instrument), ui-serif, Georgia, "Hiragino Mincho ProN",
+    "Yu Mincho", serif;
+  --font-mono: var(--font-martian), ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+/* このサイトはダーク一択のデザイン（全ページ bg-black）。
+   以前は light/dark を切り替えていたが、light 時に body だけ白くなり
+   オーバースクロール時に白が覗いていたため、ダークに寄せて統一した。 */
+:root {
+  color-scheme: dark;
+  --foreground: #f8fafc;
+  --background: #000000;
+  --foreground-100: #e2e8f0;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  /* font-feature-settings は "<tag> <value>" のカンマ区切りリスト。
+     タグの羅列は構文違反となり宣言ごと破棄される。 */
+  font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ページ内アンカー用。動きを減らす設定の人には効かせない。 */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* キーボード操作時のフォーカスを黒地でも視認できるように。 */
+:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 3px;
+}
