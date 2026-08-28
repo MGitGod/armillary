@@ -8,6 +8,7 @@ import { shutter } from './experiments/shutter';
 import { curtain } from './experiments/curtain';
 import { maskedLines } from './experiments/masked-lines';
 import { paperSphere } from './experiments/paper-sphere';
+import { radialBurst } from './experiments/radial-burst';
 
 /**
  * ラボの棚。並び順がそのまま見せる順番になる。
@@ -25,4 +26,5 @@ export const experiments: Experiment[] = [
   curtain,
   maskedLines,
   paperSphere,
+  radialBurst,
 ];
