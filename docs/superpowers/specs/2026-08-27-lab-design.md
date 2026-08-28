@@ -268,7 +268,7 @@ next/font は swap なので、初回描画とフォント適用のあいだで�
 | `components/lab/LabSection.tsx` | ピン留め＋スクラブの外殻。棚札もここ |
 | `components/lab/registry.ts` | 実験の並び順。足すときはここに 1 行 |
 | `components/lab/IndexDial.tsx` | 現在地と飛び先を兼ねたダイヤル |
-| `components/lab/experiments/*` | 実験 1 個 = 1 ファイル（現在 8 個）|
+| `components/lab/experiments/*` | 実験 1 個 = 1 ファイル（現在 10 個）|
 | `app/page.tsx` | registry を並べるだけ ＋ 終端 |
 
 ## 検証方法
@@ -305,4 +305,3 @@ SVG の変換経路はブラウザ上で `getScreenCTM()` から極座標に戻�
 - `lib/motion-core.ts` は未使用のまま（`curtain-core.ts` はハブの呼吸で使用中）
 - タッチ環境で天体を掴む手段が無い（ホバー相当の入口が未実装、当たり判定も約 30px）
 - 実験が 10 個を超えると、ダイヤルの弧が細くなりすぎて押しにくくなる（当たり判定の拡幅が要る）
-- git 未初期化のため、この設計書はコミットしていない
