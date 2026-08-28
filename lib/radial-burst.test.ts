@@ -417,131 +417,122 @@ test('persist: true の札は消えず、外周に溜まり続ける', () => {
 
 // --- 決定的なテスト（seq の算術を検査） ---
 
-test('採用ごとに角度が黄金角 1 つ分進む（seq += i + 1 の検証）', () => {
-  // 衝突が起きないように札を極小・ジッタ 0 にする
-  // persist=true にして札を消さないようにする
-  const burst = createBurst({
-    seed: 1,
-    cardSize: 0.004,
-    cardJitter: 0,
-    angleJitterDeg: 0,
-    // margin は DEFAULTS のまま（1.18）で、いくつかの棄却が起きることを許容
-    persist: true, // 札が消えないようにする
-  });
+/**
+ * seq の 3 つの経路をすべて検証する厳密なテスト。
+ *
+ * 不変量: seq === stats.rejected + stats.spawned
+ * 採用札の角度: (stats.rejected + stats.spawned − 1) × GOLDEN_ANGLE_DEG (mod 360)
+ *
+ * これにより以下を同時に検証:
+ * - i=0 の採用（棄却なし）
+ * - i>0 の採用（棄却あり）
+ * - 全滅（見送り）
+ */
+test('seq の不変量: seq === stats.rejected + stats.spawned（seq の全経路検証）', () => {
+  // 3 つの条件で実行。各条件は異なる seq 経路を通る
+  const conditions = [
+    {
+      name: '棄却なし',
+      opts: { seed: 1, cardSize: 0.004, cardJitter: 0, angleJitterDeg: 0 },
+      seconds: 20,
+      minSpawned: 100,
+      maxRejected: 0,
+      maxSkipped: 0,
+    },
+    {
+      name: '棄却と採用の混在',
+      opts: { seed: 1, angleJitterDeg: 0 },
+      seconds: 30,
+      minSpawned: 100,
+      minRejected: 1,
+      minSkipped: 1,
+    },
+    {
+      name: '全滅が繰り返す',
+      opts: { seed: 1, margin: 50, angleJitterDeg: 0 },
+      seconds: 30,
+      minSpawned: 10,
+      minSkipped: 100,
+    },
+  ];
 
-  const seconds = 10;
-  for (let i = 0; i < Math.round(seconds / DT); i++) {
-    burst.step(DT);
-  }
+  for (const cond of conditions) {
+    const burst = createBurst(cond.opts);
+    const seen = new Set<number>();
+    const maxAngleDrift: number[] = [];
 
-  // 棄却か見送りが起きていることを確認（アルゴリズムが働いている証拠）
-  // 劣化 3 では棄却が起きないが見送りは起きるため、いずれかが 0 でなければよい
-  // ただし最低限度の動作確認として、採用数が十分あることを確認
-  assert.ok(
-    burst.stats.spawned > 0,
-    `採用数が 0。アルゴリズムが全く動いていない`,
-  );
+    for (let i = 0; i < Math.round(cond.seconds / DT); i++) {
+      burst.step(DT);
+      // 札が生まれた直後に stats を読んで角度と一致することを確認
+      for (const c of burst.cards) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
 
-  // 採用札を観測して、連続する採用のたびに seq が進むことを検証
-  // seq += i + 1 の劣化（seq += 1）があると、棄却をスキップしたときに seq の進みが小さくなる
-  // 正確な逆算は複雑だが、角度が黄金角の倍数になっていることは必須
-  burst.cards.sort((a, b) => a.id - b.id);
-  const angles = burst.cards.map((c) => {
-    // 角度を 0～360 の範囲に正規化
-    let deg = ((c.angle * 180) / Math.PI) % 360;
-    if (deg < 0) deg += 360;
-    return deg;
-  });
+        // 生まれた直後の stats から期待角度を計算
+        // 採用札の seq は (rejected + spawned - 1) 番目
+        const expectedSeq = burst.stats.rejected + burst.stats.spawned - 1;
+        const expectedDeg = (expectedSeq * GOLDEN_ANGLE_DEG) % 360;
+        const actualDeg = ((c.angle * 180) / Math.PI) % 360;
 
-  // 最初の採用の角度は、seq の初期値（最初に棄却が起きるまでの進み）に依存
-  // seq += i + 1 を検証するには、複数回の採用が起きた後で、
-  // 平均的な角度差が期待値に近いことを見る
+        // 360° で正規化した差（360° は 0° と同じ）
+        let drift = Math.abs(actualDeg - expectedDeg);
+        if (drift > 180) drift = 360 - drift;
 
-  // より直接的には、棄却が起きた場合、
-  // 棄却数に応じて seq の進みが (棄却数) * (候補数) になる
-  // つまり平均角度差が大きくなるはず
+        maxAngleDrift.push(drift);
 
-  if (burst.stats.rejected > 0) {
-    // 棄却があった場合、平均角度差が大きいことを確認
-    // seq += i + 1 を正しく実装すると、棄却スキップ時に seq がしっかり進む
-    // seq += 1 の劣化だと、seq の進みが小さくなる
-    let totalDiff = 0;
-    for (let i = 1; i < angles.length; i++) {
-      const diff = (angles[i] - angles[i - 1] + 360) % 360;
-      totalDiff += diff;
+        // 条件分岐なし。毎回必ず実行される表明
+        assert.ok(
+          drift < 1e-9,
+          `${cond.name}: id=${c.id} の角度が期待値と異なる。` +
+            `期待 ${expectedDeg.toFixed(11)}°、実際 ${actualDeg.toFixed(11)}°、ずれ ${drift.toFixed(2)}e-10°。` +
+            `rejected=${burst.stats.rejected}, spawned=${burst.stats.spawned}。` +
+            `seq += i + 1 または seq += maxCandidates が正しく実装されていないか？`,
+        );
+      }
     }
-    const avgDiff = totalDiff / (angles.length - 1);
-    // 棄却がある場合、平均角度差が大きくなるはず
-    assert.ok(
-      avgDiff > 30,
-      `棄却があるのに平均角度差が小さい: ${avgDiff.toFixed(2)}°。seq += i + 1 が正しく実装されていないか？`,
-    );
-  }
-});
 
-test('全滅したら seq が 14 個分進む（seq += o.maxCandidates の検証）', () => {
-  // margin を極端に大きくすると全候補が弾かれる
-  // persist=true で札が消えないようにする
-  const burst = createBurst({
-    seed: 1,
-    margin: 50,
-    angleJitterDeg: 0,
-    persist: true,
-  });
-
-  const seconds = 10;
-  for (let i = 0; i < Math.round(seconds / DT); i++) {
-    burst.step(DT);
-  }
-
-  // 見送りが起きたことを前提として固定
-  assert.ok(
-    burst.stats.skipped > 0,
-    `見送りが起きていない。margin を大きくしても全滅していない`,
-  );
-
-  // 複数の採用がある場合、連続する採用札の角度差から seq の進みを検証
-  // seq += o.maxCandidates を省くと、全滅ごとに seq が進まない
-  // つまり、全滅を経た採用との角度差が小さくなる
-
-  if (burst.cards.length > 1) {
-    burst.cards.sort((a, b) => a.id - b.id);
-    const angles = burst.cards.map((c) => {
-      let deg = ((c.angle * 180) / Math.PI) % 360;
-      if (deg < 0) deg += 360;
-      return deg;
-    });
-
-    // seq += o.maxCandidates を正しく実装すると、
-    // 全滅を経た採用では角度が大きく進む（14 個分以上）
-    // seq += o.maxCandidates を省くと、角度差が小さい（1～14 個分）
-
-    // 複数回の見送りが起きているはず。その間に採用された札を見ると、
-    // 見送り回数 * 14 ぶんの角度差が出るはず
-
-    // より直接的には、最後の採用の角度が期待値より大きいことを確認
-    // （見送りが何回も起きれば、最終的な seq はかなり進んでいるはず）
-
-    let totalDiff = 0;
-    let diffCount = 0;
-    for (let i = 1; i < angles.length; i++) {
-      const diff = (angles[i] - angles[i - 1] + 360) % 360;
-      totalDiff += diff;
-      diffCount++;
+    // 前提条件の表明（条件分岐の外）
+    if (cond.minSpawned !== undefined) {
+      assert.ok(
+        burst.stats.spawned >= cond.minSpawned,
+        `${cond.name}: 採用数が不足。期待 >= ${cond.minSpawned}、実際 ${burst.stats.spawned}`,
+      );
     }
-    const avgDiff = totalDiff / diffCount;
+    if (cond.maxRejected !== undefined) {
+      assert.equal(
+        burst.stats.rejected,
+        cond.maxRejected,
+        `${cond.name}: 棄却が起きた。期待 ${cond.maxRejected}、実際 ${burst.stats.rejected}`,
+      );
+    }
+    if (cond.maxSkipped !== undefined) {
+      assert.equal(
+        burst.stats.skipped,
+        cond.maxSkipped,
+        `${cond.name}: 見送りが起きた。期待 ${cond.maxSkipped}、実際 ${burst.stats.skipped}`,
+      );
+    }
+    if (cond.minRejected !== undefined) {
+      assert.ok(
+        burst.stats.rejected >= cond.minRejected,
+        `${cond.name}: 棄却が不足。期待 >= ${cond.minRejected}、実際 ${burst.stats.rejected}`,
+      );
+    }
+    if (cond.minSkipped !== undefined) {
+      assert.ok(
+        burst.stats.skipped >= cond.minSkipped,
+        `${cond.name}: 見送りが不足。期待 >= ${cond.minSkipped}、実際 ${burst.stats.skipped}`,
+      );
+    }
 
-    // 正しい実装: skipped が多いほど avgDiff が大きい
-    // 劣化版（seq += o.maxCandidates 省略）: avgDiff が小さい
-
-    // 期待値: 見送りが起きていれば、平均角度差が大きいはず
-    // margin 50 にして全滅を強制すれば、skipped は必ず > 0
-    // 正しい実装なら seq がしっかり進むので avgDiff が大きい
-    // seq += o.maxCandidates を省くと avgDiff が小さい
-    assert.ok(
-      avgDiff > 12,
-      `見送りが起きているのに平均角度差が小さい: ${avgDiff.toFixed(2)}°、skipped=${burst.stats.skipped}。seq += o.maxCandidates が省かれていないか？`,
-    );
+    // 最大ずれの統計情報
+    if (maxAngleDrift.length > 0) {
+      const maxDrift = Math.max(...maxAngleDrift);
+      assert.ok(
+        maxDrift < 1e-10,
+        `${cond.name}: 最大ずれが大きい: ${maxDrift.toFixed(2)}e-10°`,
+      );
+    }
   }
 });
 
