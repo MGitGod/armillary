@@ -95,8 +95,9 @@ export const depthStack: Experiment = {
             key={c.key}
             type="button"
             data-cue={c.key}
-            aria-pressed="true"
-            className="ds-cue rounded-sm border border-white/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 transition-colors hover:border-white/40 hover:text-white/80 aria-pressed:border-transparent aria-pressed:bg-white/85 aria-pressed:text-black"
+            disabled
+            title="動きを減らす設定のため停止中"
+            className="ds-cue rounded-sm border border-white/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 transition-colors hover:border-white/40 hover:text-white/80 aria-pressed:border-transparent aria-pressed:bg-white/85 aria-pressed:text-black disabled:cursor-not-allowed disabled:opacity-40"
           >
             {c.label}
           </button>
@@ -171,12 +172,28 @@ export const depthStack: Experiment = {
     };
     for (const b of buttons) b.addEventListener('click', onClick);
 
+    // build() が呼ばれた = onClick が実際に効いているということなので、
+    // render() が焼き込んだ「停止中」の見た目(disabled / title)を剥がし、
+    // aria-pressed を現在の状態に合わせてライブなボタンに切り替える。
+    for (const b of buttons) {
+      b.disabled = false;
+      b.removeAttribute('title');
+      b.setAttribute('aria-pressed', String(on[b.dataset.cue as CueKey]));
+    }
+
     tl.to(state, { p: 1, duration: 1, ease: 'none', onUpdate: draw });
     applyCues();
     draw();
 
     return () => {
       for (const b of buttons) b.removeEventListener('click', onClick);
+      // 巻き戻し時に「押せそうに見えて実は死んでいるボタン」を残さないよう、
+      // render() が焼き込んだ停止中の見た目に戻す。
+      for (const b of buttons) {
+        b.disabled = true;
+        b.setAttribute('title', '動きを減らす設定のため停止中');
+        b.removeAttribute('aria-pressed');
+      }
     };
   },
 };

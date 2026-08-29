@@ -200,25 +200,30 @@ export const rangefinder: Experiment = {
       target.setAttribute('transform', `translate(${(STAGE_W / 2 + t.x).toFixed(2)},${STAGE_H / 2})`);
 
       // 測距。基線は「最初の観測からどれだけ走査したか」、
-      // ずれ角は「最初の観測からどれだけ動いたか」で取る。
+      // ずれ角は「消失点基準の標的位置が、最初の観測からどれだけ動いたか」で取る。
       //
       // 中央からの距離で測ってはいけない。それだと基線が減ってから増える形になり、
       // 死角が区間の中央に来るうえ、B も Δθ も |eyeX| に比例するので比が定数になり、
       // 「測っている」ことにならない。
       //
       // 逆算の式:
-      //   t  = EYE_Z / (EYE_Z + |Z|)、標的の投影 x = eyeX·(1 − t)
-      //   Δθ = B·(1 − t)  →  B/Δθ = 1/(1 − t) = (EYE_Z + |Z|) / |Z|
-      //   ∴ |Z| = EYE_Z·Δθ / (B − Δθ)
+      //   t  = EYE_Z / (EYE_Z + |Z|)、消失点基準の標的位置 rel = −eyeX·t
+      //   Δθ = |rel − rel0| = t·B  →  EYE_Z·B/Δθ = EYE_Z/t = EYE_Z + |Z|
+      //   ∴ |Z| = EYE_Z·B/Δθ − EYE_Z
       // これで機械が標的の深度 430 を復元する（TARGET_Z の真値）。
       const B = state.p * BASELINE;
-      const shift = Math.abs(t.x - TARGET_AT_START.x);
+      // 標的のずれを、消失点（無限遠）基準で測る。
+      // これは #11 が「視差 0 の遠景」を基準にしているのと同じ取り方。
+      // 標的自身の初期位置を基準にすると、ずれが大きいほど遠いという逆の関係になり、
+      // d = B/θ とは別の式になってしまう。
+      const rel = t.x - eyeX;                                   // 無限遠を基準にした標的の位置
+      const rel0 = TARGET_AT_START.x - (0 - 0.5) * BASELINE;    // 行程 0 での同じ量
+      const shift = Math.abs(rel - rel0);                       // = B·EYE_Z/(EYE_Z+|Z|)
       setText(readB, B.toFixed(0));
       setText(readT, shift.toFixed(3));
-      // 基線が開くまでは 0/0 で本当に未定義。開くと真値に錠が下りる。
-      setText(readD, shift > 0.5 && B > shift
-        ? (EYE_Z * shift / (B - shift)).toFixed(0)
-        : '—');
+      // d = f·B/θ（測距儀の教科書形。f は焦点距離にあたる EYE_Z）。
+      // f·B/θ は視点から標的までの距離なので、f を引くと画面より奥の深度になる。
+      setText(readD, shift > 0.5 ? (EYE_Z * B / shift - EYE_Z).toFixed(0) : '—');
     };
 
     // タイムラインは目標（state.p）を動かすだけ。積分は rAF が持つ。

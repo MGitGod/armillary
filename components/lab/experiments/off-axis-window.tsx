@@ -167,6 +167,9 @@ function OffAxisWindow() {
     let raf = 0;
     let t0 = 0;
     let alive = true;
+    // 直前に描いた eye 座標。フレームごとに変化を比較して、同じ値の書き込みを間引く。
+    let px = NaN;
+    let py = NaN;
 
     const drawPanel = (p: PanelRefs | null, e: Eye) => {
       if (!p) return;
@@ -201,10 +204,20 @@ function OffAxisWindow() {
       eye.current.x += (eye.current.tx - eye.current.x) * 0.1;
       eye.current.y += (eye.current.ty - eye.current.y) * 0.1;
       const e: Eye = { x: eye.current.x, y: eye.current.y, z: EYE_Z };
-      drawPanel(a.current, e);
-      drawPanel(b.current, e);
+      // ループ自体はポインタ入力に応答できる唯一の経路なので止められないが、
+      // 動きを減らす設定で自動首振りが止まった後や、ポインタが離れて lerp が
+      // 収束した後は eye が毎フレーム同じ値になる。そこから先まで
+      // 60〜144Hz で SVG の points / 端点や読み値を書き直す理由はないので、
+      // 値が実際に変わったフレームだけ描き直す。
+      if (e.x !== px || e.y !== py) {
+        drawPanel(a.current, e);
+        drawPanel(b.current, e);
+        px = e.x;
+        py = e.y;
+      }
       if (readout.current) {
-        readout.current.textContent = `eye = (${e.x.toFixed(0)}, ${e.y.toFixed(0)}, ${EYE_Z.toFixed(0)})`;
+        const s = `eye = (${e.x.toFixed(0)}, ${e.y.toFixed(0)}, ${EYE_Z.toFixed(0)})`;
+        if (readout.current.textContent !== s) readout.current.textContent = s;
       }
       raf = requestAnimationFrame(frame);
     };
@@ -253,7 +266,7 @@ function OffAxisWindow() {
         >
           自動で首を振る
         </button>
-        <span ref={readout} />
+        <span ref={readout}>{`eye = (0, 0, ${EYE_Z.toFixed(0)})`}</span>
         <span className="text-white/25">同じ立体・同じ視点入力。違うのは投影だけ</span>
       </div>
     </div>
