@@ -1274,13 +1274,21 @@ export const depthStack: Experiment = {
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.18em] text-white/25">手がかり</span>
+        {/*
+          初期状態は「効かないボタン」として正直に出す。
+          LabSection は動きを減らす設定のとき build() を呼ばないので、
+          リスナーが付かないまま押下可能に見えるボタンが残ってしまう。
+          aria-pressed も付けない — 効かない操作子が状態を主張してはいけない。
+          build() が live へ昇格させ、後始末で inert へ戻す。
+        */}
         {CUES.map((c) => (
           <button
             key={c.key}
             type="button"
             data-cue={c.key}
-            aria-pressed="true"
-            className="ds-cue rounded-sm border border-white/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 transition-colors hover:border-white/40 hover:text-white/80 aria-pressed:border-transparent aria-pressed:bg-white/85 aria-pressed:text-black"
+            disabled
+            title="動きを減らす設定のため停止中"
+            className="ds-cue rounded-sm border border-white/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-white/50 transition-colors hover:border-white/40 hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-white/20 aria-pressed:border-transparent aria-pressed:bg-white/85 aria-pressed:text-black"
           >
             {c.label}
           </button>
@@ -1353,14 +1361,27 @@ export const depthStack: Experiment = {
       applyCues();
       draw();
     };
-    for (const b of buttons) b.addEventListener('click', onClick);
+    // リスナーを付けると同時に live へ昇格させる。
+    // ここを通らなかった場合（= reduced-motion）は inert のまま残るのが正しい。
+    for (const b of buttons) {
+      b.addEventListener('click', onClick);
+      b.disabled = false;
+      b.removeAttribute('title');
+      b.setAttribute('aria-pressed', String(on[b.dataset.cue as CueKey]));
+    }
 
     tl.to(state, { p: 1, duration: 1, ease: 'none', onUpdate: draw });
     applyCues();
     draw();
 
     return () => {
-      for (const b of buttons) b.removeEventListener('click', onClick);
+      // 後始末でも inert へ戻す。remount で「生きて見える死んだボタン」を残さない。
+      for (const b of buttons) {
+        b.removeEventListener('click', onClick);
+        b.disabled = true;
+        b.setAttribute('title', '動きを減らす設定のため停止中');
+        b.removeAttribute('aria-pressed');
+      }
     };
   },
 };
@@ -1675,7 +1696,8 @@ function OffAxisWindow() {
         >
           自動で首を振る
         </button>
-        <span ref={readout} />
+        {/* 静止ポーズの読み値。frame() の 1 フレーム目と同じ文字列。 */}
+        <span ref={readout}>{`eye = (0, 0, ${EYE_Z.toFixed(0)})`}</span>
         <span className="text-white/25">同じ立体・同じ視点入力。違うのは投影だけ</span>
       </div>
     </div>
@@ -2164,13 +2186,19 @@ export const rangefinder: Experiment = {
       //   ∴ |Z| = EYE_Z·Δθ / (B − Δθ)
       // これで機械が標的の深度 430 を復元する（TARGET_Z の真値）。
       const B = state.p * BASELINE;
-      const shift = Math.abs(t.x - TARGET_AT_START.x);
+      // 標的のずれを、消失点（無限遠）基準で測る。
+      // これは #11 が「視差 0 の遠景」を基準にしているのと同じ取り方。
+      // 標的自身の初期位置を基準にすると、ずれが大きいほど遠いという逆の関係になり、
+      // d = B/θ とは別の式になってしまう（実装時のレビューで判明）。
+      const rel = t.x - eyeX;                                   // 無限遠を基準にした標的の位置
+      const rel0 = TARGET_AT_START.x - (0 - 0.5) * BASELINE;    // 行程 0 での同じ量
+      const shift = Math.abs(rel - rel0);                       // = B·EYE_Z/(EYE_Z+|Z|)
       setText(readB, B.toFixed(0));
       setText(readT, shift.toFixed(3));
-      // 基線が開くまでは 0/0 で本当に未定義。開くと真値に錠が下りる。
-      setText(readD, shift > 0.5 && B > shift
-        ? (EYE_Z * shift / (B - shift)).toFixed(0)
-        : '—');
+      // d = f·B/θ（測距儀の教科書形。f は焦点距離にあたる EYE_Z）。
+      // f·B/θ は視点から標的までの距離なので、f を引くと画面より奥の深度になる。
+      // 基線が開くまでは B=0・Δθ=0 で本当に未定義。開くと真値 430 に錠が下りる。
+      setText(readD, shift > 0.5 ? (EYE_Z * B / shift - EYE_Z).toFixed(0) : '—');
     };
 
     // タイムラインは目標（state.p）を動かすだけ。積分は rAF が持つ。
