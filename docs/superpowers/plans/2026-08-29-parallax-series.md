@@ -2111,6 +2111,17 @@ export const rangefinder: Experiment = {
 
     // ばねの初期位置は render() が置いた行程 0 の位置に合わせる。
     // 0 から始めると、最初のフレームで静止画の位置から大きく飛ぶ。
+    /**
+     * 読み値の書き込み。値が変わったときだけ触る。
+     *
+     * textContent のセッターは、同じ文字列でも子テキストノードを毎回置換する。
+     * 毎フレーム無条件に書くと 60fps でレイアウトに影響する DOM 更新が走り、
+     * 「transform と opacity 以外を毎フレーム動かさない」に反する。
+     */
+    const setText = (el: HTMLElement | null, v: string) => {
+      if (el && el.textContent !== v) el.textContent = v;
+    };
+
     const springs: Spring[] = ridges.map((el) => ({
       y: ridgeXAtStart(Number(el.dataset.z)),
       v: 0,
@@ -2154,13 +2165,12 @@ export const rangefinder: Experiment = {
       // これで機械が標的の深度 430 を復元する（TARGET_Z の真値）。
       const B = state.p * BASELINE;
       const shift = Math.abs(t.x - TARGET_AT_START.x);
-      if (readB) readB.textContent = B.toFixed(0);
-      if (readT) readT.textContent = shift.toFixed(3);
+      setText(readB, B.toFixed(0));
+      setText(readT, shift.toFixed(3));
       // 基線が開くまでは 0/0 で本当に未定義。開くと真値に錠が下りる。
-      if (readD) {
-        readD.textContent =
-          shift > 0.5 && B > shift ? (EYE_Z * shift / (B - shift)).toFixed(0) : '—';
-      }
+      setText(readD, shift > 0.5 && B > shift
+        ? (EYE_Z * shift / (B - shift)).toFixed(0)
+        : '—');
     };
 
     // タイムラインは目標（state.p）を動かすだけ。積分は rAF が持つ。
