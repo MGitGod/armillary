@@ -67,6 +67,8 @@ export const depthStack: Experiment = {
                 // 動きを減らす設定では build() が呼ばれず applyCues() も走らないので、
                 // 初期値をここで与えておく。与えないと静止画から大気遠近が丸ごと抜ける。
                 filter: `blur(${depthCues(L.z).blur.toFixed(2)}px) saturate(${depthCues(L.z).saturate.toFixed(2)}) contrast(${depthCues(L.z).contrast.toFixed(2)})`,
+                // 行程 0 では移動量が 0 なので、transform は scale だけでよい。
+                transform: `scale(${depthCues(L.z).scale})`,
               }}
             >
               <path d={ridgePath(L.phase, L.amp, L.base)} fill="currentColor" />
@@ -99,7 +101,10 @@ export const depthStack: Experiment = {
             {c.label}
           </button>
         ))}
-        <span className="ds-read ml-auto font-mono text-[11px] text-white/40" />
+        {/* 初期テキストを持たせる。build() を通らない静止画でも読み値が空にならない。 */}
+        <span className="ds-read ml-auto font-mono text-[11px] text-white/40">
+          progress 0% · 手がかり 4/4 · 層 {RIDGE_LAYERS.length}
+        </span>
       </div>
     </div>
   ),
