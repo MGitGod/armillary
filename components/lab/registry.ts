@@ -13,6 +13,7 @@ import { stellarParallax } from './experiments/stellar-parallax';
 import { depthStack } from './experiments/depth-stack';
 import { offAxisWindow } from './experiments/off-axis-window';
 import { velocityParallax } from './experiments/velocity-parallax';
+import { rangefinder } from './experiments/rangefinder';
 
 /**
  * ラボの棚。並び順がそのまま見せる順番になる。
@@ -35,4 +36,5 @@ export const experiments: Experiment[] = [
   depthStack,
   offAxisWindow,
   velocityParallax,
+  rangefinder,
 ];
