@@ -1874,7 +1874,12 @@ function VelocityParallax() {
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-4 font-mono text-[11px] text-white/40">
-        <span ref={read} />
+        {/*
+          初期テキストを持たせる。動きを減らす設定では effect ごと早期 return するので、
+          ここで与えないと読み値が恒久的に空欄になる。
+          静止時（速度 0・遅れ 0）の値そのものなので、意味も合う。
+        */}
+        <span ref={read}>velocity 0 px/s · 最大遅れ 0.0 px</span>
         <span className="text-white/25">勢いよくスクロールして、止めてみる</span>
       </div>
     </div>
