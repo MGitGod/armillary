@@ -9,6 +9,7 @@ import { curtain } from './experiments/curtain';
 import { maskedLines } from './experiments/masked-lines';
 import { paperSphere } from './experiments/paper-sphere';
 import { radialBurst } from './experiments/radial-burst';
+import { stellarParallax } from './experiments/stellar-parallax';
 
 /**
  * ラボの棚。並び順がそのまま見せる順番になる。
@@ -27,4 +28,5 @@ export const experiments: Experiment[] = [
   maskedLines,
   paperSphere,
   radialBurst,
+  stellarParallax,
 ];
