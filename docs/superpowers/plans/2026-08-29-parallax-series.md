@@ -1248,9 +1248,11 @@ export const depthStack: Experiment = {
                 transformOrigin: '50% 20%',
                 // 奥ほど地の色に寄る。大気遠近の主成分。
                 color: `color-mix(in srgb, #dce8f2 ${(88 - L.z * 66).toFixed(0)}%, #12212e)`,
-                // 動きを減らす設定では build() が呼ばれず applyCues() も走らないので、
-                // 初期値をここで与えておく。与えないと静止画から大気遠近が丸ごと抜ける。
+                // 動きを減らす設定では build() が呼ばれず applyCues() も draw() も走らないので、
+                // 初期値をここで与えておく。与えないと静止画から大気遠近と遠近の縮尺が抜ける。
+                // 行程 0 では移動量が 0 なので、transform は scale だけでよい。
                 filter: `blur(${depthCues(L.z).blur.toFixed(2)}px) saturate(${depthCues(L.z).saturate.toFixed(2)}) contrast(${depthCues(L.z).contrast.toFixed(2)})`,
+                transform: `scale(${depthCues(L.z).scale})`,
               }}
             >
               <path d={ridgePath(L.phase, L.amp, L.base)} fill="currentColor" />
@@ -1283,7 +1285,10 @@ export const depthStack: Experiment = {
             {c.label}
           </button>
         ))}
-        <span className="ds-read ml-auto font-mono text-[11px] text-white/40" />
+        {/* 初期テキストを持たせる。build() を通らない静止画でも読み値が空にならない。 */}
+        <span className="ds-read ml-auto font-mono text-[11px] text-white/40">
+          progress 0% · 手がかり 4/4 · 層 {RIDGE_LAYERS.length}
+        </span>
       </div>
     </div>
   ),
@@ -1912,6 +1917,20 @@ const TARGET_AT_START = projectOffAxis(
   { x: (0 - 0.5) * BASELINE, y: 0, z: EYE_Z },
 );
 
+/** 層の深度。z ∈ [0,1] を実際の奥行きへ写す。draw() と render() で同じ式を使う。 */
+const layerDepth = (z: number) => -60 - z * 420;
+
+/**
+ * 行程 0 の時点の層の横位置。ばねは y=0 から始まるが、目標はここ。
+ * render() 側にも同じ値を置いておかないと、動きを減らす設定で
+ * 「観測者が基線の中央に居る」別の絵になり、遠近の縮尺も抜ける。
+ */
+const ridgeXAtStart = (z: number) =>
+  projectOffAxis(
+    { x: 0, y: 0, z: layerDepth(z) },
+    { x: (0 - 0.5) * BASELINE, y: 0, z: EYE_Z },
+  ).x;
+
 /**
  * 測距儀。四つの技法の融合であって、並置ではない。
  *
@@ -1962,6 +1981,8 @@ export const rangefinder: Experiment = {
                 willChange: 'transform', transformOrigin: '50% 20%',
                 color: `color-mix(in srgb, #dce8f2 ${(88 - L.z * 66).toFixed(0)}%, #12212e)`,
                 filter: `blur(${depthCues(L.z).blur.toFixed(2)}px) saturate(${depthCues(L.z).saturate.toFixed(2)}) contrast(${depthCues(L.z).contrast.toFixed(2)})`,
+                // 行程 0 の位置と縮尺。build() を通らない静止画のための初期値。
+                transform: `translate3d(${ridgeXAtStart(L.z).toFixed(2)}px,0,0) scale(${depthCues(L.z).scale})`,
               }}
             >
               <path d={ridgePath(L.phase, L.amp, L.base)} fill="currentColor" />
@@ -2021,7 +2042,12 @@ export const rangefinder: Experiment = {
     const readD = root.querySelector<HTMLElement>('.rf-d');
     if (ridges.length === 0 || !target) return;
 
-    const springs: Spring[] = ridges.map(() => ({ y: 0, v: 0 }));
+    // ばねの初期位置は render() が置いた行程 0 の位置に合わせる。
+    // 0 から始めると、最初のフレームで静止画の位置から大きく飛ぶ。
+    const springs: Spring[] = ridges.map((el) => ({
+      y: ridgeXAtStart(Number(el.dataset.z)),
+      v: 0,
+    }));
     const state = { p: 0 };
 
     const draw = (dt: number) => {
@@ -2032,7 +2058,7 @@ export const rangefinder: Experiment = {
         const z = Number(el.dataset.z);
         // 層を「奥にある平面」として視錐台で張り直す。
         // 平行移動と違い、視点が寄った側の壁がせん断して手前に隠れる。
-        const depth = -60 - z * 420;
+        const depth = layerDepth(z);
         const s = projectOffAxis({ x: 0, y: 0, z: depth }, { x: eyeX, y: 0, z: EYE_Z });
         // ばねで遅れて追従させる。深度ごとに剛性が違うので、動きに質量が出る。
         springs[i] = stepSpring(springs[i], s.x, z, dt);
