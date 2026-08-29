@@ -105,3 +105,24 @@ test('星の配置とデータが図に載る形で揃っている', () => {
     assert.ok(STARS[i].parallax <= STARS[i - 1].parallax, '視差の降順＝近い順');
   }
 });
+
+test('黄道の極（β=±90）で parallaxOffset の軌跡は真円になる', () => {
+  const p = 0.5;
+  const thetas = [0, Math.PI / 4, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+  for (const beta of [90, -90]) {
+    for (const theta of thetas) {
+      const o = parallaxOffset(p, beta, theta);
+      const r2 = o.dx * o.dx + o.dy * o.dy;
+      assert.ok(near(r2, p * p, 1e-9), `β=${beta}, θ=${theta}: r²=${r2}, p²=${p * p}`);
+    }
+  }
+});
+
+test('黄道面上（β=0）で parallaxOffset の軌跡は直線に退化する', () => {
+  const p = 0.5;
+  const thetas = [0, Math.PI / 4, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+  for (const theta of thetas) {
+    const o = parallaxOffset(p, 0, theta);
+    assert.ok(near(o.dy, 0, 1e-9), `β=0, θ=${theta}: dy=${o.dy}（0 であるべき）`);
+  }
+});
