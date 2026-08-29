@@ -784,6 +784,19 @@ test('視点が動かなければ投影も動かない', () => {
   assert.deepEqual(projectOffAxis(p, eye), projectOffAxis(p, eye));
 });
 
+test('projectNaive の depthScale が実際に効く', () => {
+  // 既定値 350 は「確定値」なのに、他のテストは全部この値に無反応
+  // （p.z=0 か eye.x/y=0 で項が消えるか、幅の max−min で一律オフセットが相殺される）。
+  // eye と p.z の両方を非ゼロにして、出力の数値そのものを見る。
+  const eye: Eye = { x: 10, y: -6, z: 430 };
+  // -p.z / depthScale = 350/350 = 1 なので、視点のオフセットがそのまま乗る
+  const at350 = projectNaive({ x: 0, y: 0, z: -350 }, eye);
+  assert.ok(near(at350.x, 10) && near(at350.y, -6));
+  // 引数経路も死角にしない。係数が 2 になる
+  const at175 = projectNaive({ x: 0, y: 0, z: -350 }, eye, 175);
+  assert.ok(near(at175.x, 20) && near(at175.y, -12));
+});
+
 test('シャフトは各深度に 4 隅を持ち、手前から奥へ並ぶ', () => {
   const rings = shaftRings(SHAFT_HALF, SHAFT_DEPTHS);
   assert.equal(rings.length, SHAFT_DEPTHS.length);
