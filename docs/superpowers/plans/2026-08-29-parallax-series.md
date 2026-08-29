@@ -1256,20 +1256,33 @@ export const depthStack: Experiment = {
       depthCues(near.z).speed, depthCues(far.z).speed,
     );
 
+    /**
+     * ぼけ・彩度・不透明度・合成モードは、トグルを押したときしか変わらない。
+     * 毎フレーム書くとスクロールのたびに合成が走るので、ここに分けてある
+     * （毎フレーム触ってよいのは transform と opacity だけ、という制約に従う）。
+     */
+    const applyCues = () => {
+      for (const el of ridges) {
+        const z = Number(el.dataset.z);
+        const c = depthCues(z);
+        const blur = on.blur ? c.blur : 0;
+        const sat = on.tone ? c.saturate : 1;
+        const con = on.tone ? c.contrast : 1;
+        el.style.filter = `blur(${blur.toFixed(2)}px) saturate(${sat.toFixed(2)}) contrast(${con.toFixed(2)})`;
+        // 遮蔽を切ると層が透ける。単眼で最強の手がかりが抜けたときの崩れ方を見せる。
+        el.style.opacity = on.occ ? '1' : z === 0 ? '0.55' : '0.45';
+        el.style.mixBlendMode = on.occ ? 'normal' : 'screen';
+      }
+    };
+
+    /** 毎フレーム。transform だけを書く。 */
     const draw = () => {
       for (const el of ridges) {
         const z = Number(el.dataset.z);
         const c = depthCues(z);
         const speed = on.speed ? c.speed : 1;
-        const blur = on.blur ? c.blur : 0;
-        const sat = on.tone ? c.saturate : 1;
-        const con = on.tone ? c.contrast : 1;
         el.style.transform =
           `translate3d(0,${(-state.p * range * speed).toFixed(2)}px,0) scale(${c.scale})`;
-        el.style.filter = `blur(${blur.toFixed(2)}px) saturate(${sat.toFixed(2)}) contrast(${con.toFixed(2)})`;
-        // 遮蔽を切ると層が透ける。単眼で最強の手がかりが抜けたときの崩れ方を見せる。
-        el.style.opacity = on.occ ? '1' : z === 0 ? '0.55' : '0.45';
-        el.style.mixBlendMode = on.occ ? 'normal' : 'screen';
       }
       if (read) {
         const n = CUES.filter((c) => on[c.key]).length;
@@ -1282,11 +1295,13 @@ export const depthStack: Experiment = {
       const k = b.dataset.cue as CueKey;
       on[k] = !on[k];
       b.setAttribute('aria-pressed', String(on[k]));
+      applyCues();
       draw();
     };
     for (const b of buttons) b.addEventListener('click', onClick);
 
     tl.to(state, { p: 1, duration: 1, ease: 'none', onUpdate: draw });
+    applyCues();
     draw();
 
     return () => {
@@ -1944,14 +1959,10 @@ export const rangefinder: Experiment = {
 
     const springs: Spring[] = ridges.map(() => ({ y: 0, v: 0 }));
     const state = { p: 0 };
-    let last = 0;
 
-    const draw = () => {
+    const draw = (dt: number) => {
       // 行程の 0→1 で、観測者が基線の左端から右端へ移動する。
       const eyeX = (state.p - 0.5) * BASELINE;
-      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
-      const dt = last ? Math.min(now - last, 0.05) : 0.016;
-      last = now;
 
       ridges.forEach((el, i) => {
         const z = Number(el.dataset.z);
@@ -1980,11 +1991,36 @@ export const rangefinder: Experiment = {
       if (readD) readD.textContent = theta > 0.5 ? `${(b / theta).toFixed(1)}` : '—';
     };
 
-    tl.to(state, { p: 1, duration: 1, ease: 'none', onUpdate: draw });
-    draw();
+    // タイムラインは目標（state.p）を動かすだけ。積分は rAF が持つ。
+    //
+    // ばねを onUpdate の中で積分してはいけない。scrub された onUpdate は
+    // **スクロールが止まると呼ばれなくなる**ので、ばねが収束せず途中で凍る。
+    // 「止めても奥の層はまだ沈んでいる」という #14 の売りが、ここで逆に壊れる。
+    // #14 を pin:false + Component にしたのと同じ理由が、build の中でも効く。
+    tl.to(state, { p: 1, duration: 1, ease: 'none' });
+
+    let raf = 0;
+    let prev = 0;
+    let alive = true;
+    const frame = (now: number) => {
+      if (!alive) return;
+      const dt = prev ? Math.min((now - prev) / 1000, 0.05) : 0.016;
+      prev = now;
+      draw(dt);
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+
+    return () => {
+      alive = false;
+      cancelAnimationFrame(raf);
+    };
   },
 };
 ```
+
+**注意:** `LabSection` は reduced-motion のとき `build()` をそもそも呼ばないので、
+この rAF ループは動きを減らす設定では起動しない。#13 #14 のような自前の対応は要らない。
 
 - [ ] **Step 2: registry に足す**
 
@@ -2009,6 +2045,8 @@ Expected: すべて成功
 
 - スクロールで**層がせん断する**（平行移動ではない）ことを確認する。#12 と並べて見比べる
 - 層の動きに**遅れ（質量）**があることを確認する
+- **スクロールを途中で止めて、層がその場で凍らずに落ち着くまで動き続ける**ことを確認する。
+  凍るなら、ばねが rAF ではなくタイムラインの `onUpdate` で回っている
 - 標的がレチクル中心を横切り、**`d = B/θ` の読みが基線の伸びとともに安定する**ことを確認する
 - **`d` の読みが暴れ続けるようなら `TARGET_Z` を調整する。** θ が 0 付近で発散するのは式どおりで、`θ > 0.5` のガードがそれを抑えている
 - `fade: false` にしてあるので、区間の終わりで**絵が保持される**ことを確認する（測り終わった状態を残す）
