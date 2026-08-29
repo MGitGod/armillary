@@ -79,19 +79,31 @@ export const stellarParallax: Experiment = {
             strokeDasharray="3 3" style={{ color: 'rgb(224 82 58)' }}
           />
 
-          {STARS.map((s, i) => (
-            <g key={s.name}>
-              <g className="sp-star" data-i={i}>
-                <circle r={s.mag} className="fill-white" />
-                {i === FOCUS && (
-                  <circle r={s.mag + 4} fill="none" strokeWidth={1}
-                          stroke="currentColor" style={{ color: 'rgb(224 82 58)' }} />
-                )}
+          {STARS.map((s, i) => {
+            // 初期位置は θ=0（1月）に固定する。動きを減らす設定では LabSection が
+            // build() を一切呼ばないため、これが無いと星は SVG 原点 (0,0) に
+            // 重なったまま止まり、ラベルと楕円だけが正しい位置に残る壊れた図になる。
+            // build() の 1 フレーム目とピクセル単位で一致させることで、
+            // 静止画そのものが「1 月時点の観測」という意味を持つ。
+            const o0 = parallaxOffset(s.parallax, s.eclipticLat, 0);
+            return (
+              <g key={s.name}>
+                <g
+                  className="sp-star"
+                  data-i={i}
+                  transform={`translate(${(s.x + o0.dx * ARCSEC_PX).toFixed(2)},${(s.y + o0.dy * ARCSEC_PX).toFixed(2)})`}
+                >
+                  <circle r={s.mag} className="fill-white" />
+                  {i === FOCUS && (
+                    <circle r={s.mag + 4} fill="none" strokeWidth={1}
+                            stroke="currentColor" style={{ color: 'rgb(224 82 58)' }} />
+                  )}
+                </g>
+                <text x={s.x + 10} y={s.y - 8} fontSize={9} letterSpacing={0.6}
+                      className="fill-white/40 font-mono">{s.name.toUpperCase()}</text>
               </g>
-              <text x={s.x + 10} y={s.y - 8} fontSize={9} letterSpacing={0.6}
-                    className="fill-white/40 font-mono">{s.name.toUpperCase()}</text>
-            </g>
-          ))}
+            );
+          })}
         </svg>
 
         {/* 読み値。d = 1/ϖ がその場で走る。 */}
