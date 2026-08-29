@@ -11,6 +11,7 @@ import { paperSphere } from './experiments/paper-sphere';
 import { radialBurst } from './experiments/radial-burst';
 import { stellarParallax } from './experiments/stellar-parallax';
 import { depthStack } from './experiments/depth-stack';
+import { offAxisWindow } from './experiments/off-axis-window';
 
 /**
  * ラボの棚。並び順がそのまま見せる順番になる。
@@ -31,4 +32,5 @@ export const experiments: Experiment[] = [
   radialBurst,
   stellarParallax,
   depthStack,
+  offAxisWindow,
 ];
