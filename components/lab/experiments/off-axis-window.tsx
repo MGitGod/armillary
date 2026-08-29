@@ -30,6 +30,37 @@ type PanelRefs = {
 const pts = (ps: Vec2[]) =>
   ps.map((p) => `${(CENTRE + p.x).toFixed(1)},${(CENTRE + p.y).toFixed(1)}`).join(' ');
 
+/** 視点が正面にある静止ポーズ。 */
+const REST_EYE: Eye = { x: 0, y: 0, z: EYE_Z };
+
+/**
+ * 静止ポーズの幾何を先に計算しておく。
+ *
+ * ポリゴンの points を rAF の中でしか書かないと、**最初のフレームが来るまで図形が存在しない**。
+ * SSR が返す HTML にも入らないし、バックグラウンドタブでは rAF が止まるので空のまま残る。
+ * 枠とラベルだけが出て中身が無い、という絵になる。
+ *
+ * このリポジトリは同じ穴を一度踏んで直している（radial-burst の「図版パスの事前計算」）。
+ * 定数だけの純粋計算なので SSR でも安全。
+ */
+const restGeometry = (project: Project) => {
+  const rings = RINGS.map((ring) => ring.map((v) => project(v, REST_EYE)));
+  const last = rings[rings.length - 1];
+  const seg = (a: Vec2, b: Vec2) => ({
+    x1: (CENTRE + a.x).toFixed(1), y1: (CENTRE + a.y).toFixed(1),
+    x2: (CENTRE + b.x).toFixed(1), y2: (CENTRE + b.y).toFixed(1),
+  });
+  const h = [{ x: -GNOMON_R, y: 0, z: GNOMON_Z }, { x: GNOMON_R, y: 0, z: GNOMON_Z }]
+    .map((v) => project(v, REST_EYE));
+  const v = [{ x: 0, y: -GNOMON_R, z: GNOMON_Z }, { x: 0, y: GNOMON_R, z: GNOMON_Z }]
+    .map((q) => project(q, REST_EYE));
+  return {
+    polys: rings.map(pts),
+    edges: [0, 1, 2, 3].map((i) => seg(rings[0][i], last[i])),
+    gnomon: [seg(h[0], h[1]), seg(v[0], v[1])],
+  };
+};
+
 /** 片側のパネル。投影関数だけが違う。 */
 function Panel({
   label, hot, project, refs,
@@ -40,13 +71,15 @@ function Panel({
   refs: React.MutableRefObject<PanelRefs | null>;
 }) {
   const root = useRef<SVGSVGElement | null>(null);
+  // 静止ポーズ。render が返す HTML にそのまま乗るので、最初のフレーム前でも図形が出る。
+  const rest = restGeometry(project);
   useEffect(() => {
     const svg = root.current;
     if (!svg) return;
     refs.current = {
-      polys: Array.from(svg.querySelectorAll('polygon')),
-      edges: Array.from(svg.querySelectorAll('line.edge')),
-      gnomon: Array.from(svg.querySelectorAll('line.gnomon')),
+      polys: Array.from(svg.querySelectorAll<SVGPolygonElement>('polygon')),
+      edges: Array.from(svg.querySelectorAll<SVGLineElement>('line.edge')),
+      gnomon: Array.from(svg.querySelectorAll<SVGLineElement>('line.gnomon')),
       project,
     };
   }, [project, refs]);
@@ -62,6 +95,7 @@ function Panel({
         {RINGS.map((_, i) => (
           <polygon
             key={i}
+            points={rest.polys[i]}
             fill="none"
             strokeWidth={i === 0 ? 1.4 : 1}
             stroke="currentColor"
@@ -71,10 +105,12 @@ function Panel({
           />
         ))}
         {[0, 1, 2, 3].map((i) => (
-          <line key={i} className="edge text-white/15" stroke="currentColor" strokeWidth={0.7} />
+          <line key={i} {...rest.edges[i]}
+                className="edge text-white/15" stroke="currentColor" strokeWidth={0.7} />
         ))}
         {[0, 1].map((i) => (
-          <line key={i} className="gnomon" stroke="currentColor" strokeWidth={1.2}
+          <line key={i} {...rest.gnomon[i]}
+                className="gnomon" stroke="currentColor" strokeWidth={1.2}
                 style={{ color: 'rgb(224 82 58)' }} />
         ))}
       </svg>
@@ -105,8 +141,22 @@ function OffAxisWindow() {
   const a = useRef<PanelRefs | null>(null);
   const b = useRef<PanelRefs | null>(null);
   const [auto, setAuto] = useState(true);
+  // 動きを減らす設定を state でも持つ。ボタンの表示に使う。
+  // matchMedia は SSR で触れないので、初期値は false にして mount 後に同期する。
+  const [reduced, setReduced] = useState(false);
   const eye = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
   const readout = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setReduced(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  /** 実際に首が振れているか。ボタンはこれを表示する。 */
+  const sweeping = auto && !reduced;
 
   useEffect(() => {
     const el = wrap.current;
@@ -187,11 +237,19 @@ function OffAxisWindow() {
                project={projectOffAxis} refs={b} />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[11px] text-white/40">
+        {/*
+          aria-pressed は auto ではなく sweeping（実際に効いている状態）を指す。
+          auto を直に出すと、動きを減らす設定のユーザーに対して
+          「構造的に起動しえない機能」をオンと表示し続けることになる。
+          そのうえで、押しても何も起きないボタンは無効にする。
+        */}
         <button
           type="button"
           onClick={() => setAuto((v) => !v)}
-          aria-pressed={auto}
-          className="rounded-sm border border-white/20 px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] transition-colors hover:border-white/40 hover:text-white/80 aria-pressed:border-transparent aria-pressed:bg-white/85 aria-pressed:text-black"
+          aria-pressed={sweeping}
+          disabled={reduced}
+          title={reduced ? '動きを減らす設定のため停止中' : undefined}
+          className="rounded-sm border border-white/20 px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] transition-colors hover:border-white/40 hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-white/20 aria-pressed:border-transparent aria-pressed:bg-white/85 aria-pressed:text-black"
         >
           自動で首を振る
         </button>
