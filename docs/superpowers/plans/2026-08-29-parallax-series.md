@@ -24,6 +24,13 @@
 - **`.ts` 拡張子つきで import する**（`from './parallax.ts'`）。`tsconfig.json` の `allowImportingTsExtensions: true` がその前提
 - **コメントは後日チュートリアル記事に育てる前提で書く。** 何が定石か／なぜその値か／試して駄目だった代案／踏んだ落とし穴。数値には根拠を添える
 - **reduced-motion:** `LabSection` はピン留めする実験（#11 #12 #15）を自動で守る。`pin: false` の #13 #14 は**自前で対応が要る**
+- **`render()` が単体で静止画として成立すること。** `LabSection` は動きを減らす設定のとき
+  `build()` を**呼び出しごとスキップする**（アニメを止めるのではない）。したがって
+  **`build()` の中でしか位置が書かれない要素は、その設定で恒久的に壊れる**
+  ── SVG 要素なら原点 (0,0) に、DOM 要素なら transform 無しの位置に固まる。
+  位置・色・ぼけなど、静止画として意味を持つ属性は `render()` 側の初期値で与え、
+  `build()` はそれを上書きするだけにすること。既存の `shutter.tsx` が
+  「レイアウトで済むものはレイアウトで済ませる」と書いているのと同じ理由
 - コミットメッセージは日本語。既存の `feat(radial-burst): …` の形に揃える
 
 ## File Structure
@@ -1011,9 +1018,16 @@ export const stellarParallax: Experiment = {
             strokeDasharray="3 3" style={{ color: 'rgb(224 82 58)' }}
           />
 
-          {STARS.map((s, i) => (
+          {STARS.map((s, i) => {
+            // 動きを減らす設定では build() が呼ばれないので、ここで θ=0 の位置を与える。
+            // 与えないと 6 星すべてが SVG 原点に重なり、ラベルだけが正しい位置に残る。
+            // s.x, s.y に置くだけでは足りない ── θ=0 でも dy = −ϖ·sin β ≠ 0 なので楕円から外れる。
+            const o0 = parallaxOffset(s.parallax, s.eclipticLat, 0);
+            const x0 = (s.x + o0.dx * ARCSEC_PX).toFixed(2);
+            const y0 = (s.y + o0.dy * ARCSEC_PX).toFixed(2);
+            return (
             <g key={s.name}>
-              <g className="sp-star" data-i={i}>
+              <g className="sp-star" data-i={i} transform={`translate(${x0},${y0})`}>
                 <circle r={s.mag} className="fill-white" />
                 {i === FOCUS && (
                   <circle r={s.mag + 4} fill="none" strokeWidth={1}
@@ -1023,7 +1037,8 @@ export const stellarParallax: Experiment = {
               <text x={s.x + 10} y={s.y - 8} fontSize={9} letterSpacing={0.6}
                     className="fill-white/40 font-mono">{s.name.toUpperCase()}</text>
             </g>
-          ))}
+            );
+          })}
         </svg>
 
         {/* 読み値。d = 1/ϖ がその場で走る。 */}
@@ -1233,6 +1248,9 @@ export const depthStack: Experiment = {
                 transformOrigin: '50% 20%',
                 // 奥ほど地の色に寄る。大気遠近の主成分。
                 color: `color-mix(in srgb, #dce8f2 ${(88 - L.z * 66).toFixed(0)}%, #12212e)`,
+                // 動きを減らす設定では build() が呼ばれず applyCues() も走らないので、
+                // 初期値をここで与えておく。与えないと静止画から大気遠近が丸ごと抜ける。
+                filter: `blur(${depthCues(L.z).blur.toFixed(2)}px) saturate(${depthCues(L.z).saturate.toFixed(2)}) contrast(${depthCues(L.z).contrast.toFixed(2)})`,
               }}
             >
               <path d={ridgePath(L.phase, L.amp, L.base)} fill="currentColor" />
@@ -1885,6 +1903,16 @@ const BASELINE = STAGE_W;
 const TARGET_Z = -430;
 
 /**
+ * 行程 0 の時点の標的位置。
+ * 動きを減らす設定では build() が呼ばれないので、これを render() 側で与えないと
+ * 標的が SVG 原点に張り付いた静止画になる（#11 で踏んだのと同じ穴）。
+ */
+const TARGET_AT_START = projectOffAxis(
+  { x: 0, y: 0, z: TARGET_Z },
+  { x: (0 - 0.5) * BASELINE, y: 0, z: EYE_Z },
+);
+
+/**
  * 測距儀。四つの技法の融合であって、並置ではない。
  *
  * スクロールで観測者が基線上を移動する。すると 4 つが順に効く:
@@ -1944,7 +1972,11 @@ export const rangefinder: Experiment = {
         {/* 標的。奥に浮かぶ十字。これのずれ角を測る。 */}
         <svg viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} preserveAspectRatio="none"
              className="pointer-events-none absolute inset-0" style={{ zIndex: 15 }}>
-          <g className="rf-target" style={{ color: 'rgb(224 82 58)' }}>
+          <g
+            className="rf-target"
+            transform={`translate(${(STAGE_W / 2 + TARGET_AT_START.x).toFixed(2)},${STAGE_H / 2})`}
+            style={{ color: 'rgb(224 82 58)' }}
+          >
             <line x1={-16} y1={0} x2={16} y2={0} stroke="currentColor" strokeWidth={1.4} />
             <line x1={0} y1={-16} x2={0} y2={16} stroke="currentColor" strokeWidth={1.4} />
             <circle r={22} fill="none" stroke="currentColor" strokeWidth={0.7} opacity={0.6} />
