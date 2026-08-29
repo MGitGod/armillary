@@ -21,6 +21,18 @@ export const ARCSEC_PX = 90;
 /** 地上観測で視差が測れる限界。図の上で 1px 未満は測れないものとして扱う。 */
 export const MEASURABLE_PX = 1;
 
+/**
+ * 図の上で測れる距離の上限 [pc]。
+ *
+ * ずれ [px] = ϖ["] × ARCSEC_PX、d[pc] = 1/ϖ なので、
+ * ずれが MEASURABLE_PX を切る距離は ARCSEC_PX / MEASURABLE_PX。
+ * 現在の縮尺では 90 pc。
+ *
+ * 実際の地上観測の限界（大気の揺らぎで決まる）は約 100 pc とされるが、
+ * この図の限界はあくまで縮尺から決まる別の量。混同しないこと。
+ */
+export const MEASURABLE_PC = ARCSEC_PX / MEASURABLE_PX;
+
 export type Star = {
   name: string;
   /** 年周視差 ϖ ["]。Hipparcos / Gaia の実測。 */
@@ -38,7 +50,9 @@ export type Star = {
  * 視差の降順＝近い順に並べてある。表の並びをここで保証する。
  *
  * 下 2 つは図上のずれが 1px を切る。これが重要で、
- * 地上観測の限界（約 100 pc）がそのまま図に出る
+ * 図の限界 MEASURABLE_PC（= ARCSEC_PX / MEASURABLE_PX = 90 pc）がそのまま出る。
+ * 実際の地上観測の限界とされる約 100 pc と近いのは偶然ではなく、
+ * そう見えるように ARCSEC_PX を選んである
  * ──「測れない」を演出ではなく事実として見せられる。
  */
 export const STARS: Star[] = [

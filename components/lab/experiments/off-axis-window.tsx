@@ -11,11 +11,26 @@ import {
   type Eye,
   type Vec2,
 } from '../../../lib/frustum';
+import { approach, rateFromPerFrame } from '../../../lib/parallax';
+import { setText, visibleLoop } from '../raf-loop';
 
 const VIEW = 320;
 const CENTRE = VIEW / 2;
 const EYE_Z = VIEW * EYE_Z_RATIO;
 const RINGS = shaftRings(SHAFT_HALF, SHAFT_DEPTHS);
+/**
+ * 自動首振りの振れ幅。視点の可動域（ポインタ時 ±95 / ±60）の内側に収めてある。
+ * 端まで振ると壁が枠を越えて、覗き窓ではなく板の移動に見える。
+ */
+const SWEEP_X = 82;
+const SWEEP_Y = 42;
+
+/**
+ * 視点の追従。もとは per-frame の 0.1 で、120Hz では倍の速さになっていた。
+ * 60fps 換算で同じ見た目になる rate に直してある。
+ */
+const EYE_RATE = rateFromPerFrame(0.1);   // ≈ 6.32 /s
+
 const GNOMON_Z = -175;
 const GNOMON_R = 34;
 
@@ -164,9 +179,8 @@ function OffAxisWindow() {
 
     // pin:false なので LabSection の reduced-motion 対応が効かない。自前で見る。
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let raf = 0;
-    let t0 = 0;
-    let alive = true;
+    // 自動首振りの位相。dt を足すので、画面外で止めても再開時に飛ばない。
+    let sweep = 0;
     // 直前に描いた eye 座標。フレームごとに変化を比較して、同じ値の書き込みを間引く。
     let px = NaN;
     let py = NaN;
@@ -190,19 +204,17 @@ function OffAxisWindow() {
       set(p.gnomon[1], v2[0], v2[1]);
     };
 
-    const frame = (now: number) => {
-      if (!alive) return;
-      if (!t0) t0 = now;
+    const stopLoop = visibleLoop(el, (dt) => {
       // 動きを減らす設定では、自動の首振りだけ止める。
       // ポインタへの応答は本人の操作なので残す（WCAG 2.3.3 はインタラクション由来の
       // アニメーションを「無効化できること」を求めるもので、操作そのものは禁じない）。
       if (auto && !reduce.matches) {
-        const t = (now - t0) / 1000;
-        eye.current.tx = Math.sin(t * 0.72) * 82;
-        eye.current.ty = Math.sin(t * 0.47) * 42;
+        sweep += dt;
+        eye.current.tx = Math.sin(sweep * 0.72) * SWEEP_X;
+        eye.current.ty = Math.sin(sweep * 0.47) * SWEEP_Y;
       }
-      eye.current.x += (eye.current.tx - eye.current.x) * 0.1;
-      eye.current.y += (eye.current.ty - eye.current.y) * 0.1;
+      eye.current.x = approach(eye.current.x, eye.current.tx, EYE_RATE, dt);
+      eye.current.y = approach(eye.current.y, eye.current.ty, EYE_RATE, dt);
       const e: Eye = { x: eye.current.x, y: eye.current.y, z: EYE_Z };
       // ループ自体はポインタ入力に応答できる唯一の経路なので止められないが、
       // 動きを減らす設定で自動首振りが止まった後や、ポインタが離れて lerp が
@@ -215,13 +227,9 @@ function OffAxisWindow() {
         px = e.x;
         py = e.y;
       }
-      if (readout.current) {
-        const s = `eye = (${e.x.toFixed(0)}, ${e.y.toFixed(0)}, ${EYE_Z.toFixed(0)})`;
-        if (readout.current.textContent !== s) readout.current.textContent = s;
-      }
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
+      setText(readout.current,
+        `eye = (${e.x.toFixed(0)}, ${e.y.toFixed(0)}, ${EYE_Z.toFixed(0)})`);
+    });
 
     const onMove = (ev: PointerEvent) => {
       const r = el.getBoundingClientRect();
@@ -234,8 +242,7 @@ function OffAxisWindow() {
     el.addEventListener('pointerleave', onLeave);
 
     return () => {
-      alive = false;
-      cancelAnimationFrame(raf);
+      stopLoop();
       el.removeEventListener('pointermove', onMove);
       el.removeEventListener('pointerleave', onLeave);
     };

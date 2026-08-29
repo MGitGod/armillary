@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RIDGE_FOOT,
+  approach,
+  rateFromPerFrame,
   RIDGE_VIEW_H,
   depthCues,
   maxTravel,
@@ -149,4 +151,49 @@ test('ridgePath は閉じた図形で、足が延長線まで届く', () => {
 test('ridgePath は phase で形が変わり、同じ phase なら同じ形', () => {
   assert.equal(ridgePath(1.5, 46, 96), ridgePath(1.5, 46, 96));
   assert.notEqual(ridgePath(0, 46, 96), ridgePath(2.7, 46, 96));
+});
+
+test('approach は 60fps では従来の per-frame 係数と一致する', () => {
+  // 既存の見た目を変えずに dt 対応へ移せることの確認。
+  for (const f of [0.1, 0.16, 0.14]) {
+    const rate = rateFromPerFrame(f);
+    const stepped = approach(0, 1, rate, 1 / 60);
+    assert.ok(near(stepped, f, 1e-12), `f=${f} で ${stepped}`);
+  }
+});
+
+test('approach はフレームレートを変えても同じ時間で同じところへ行く', () => {
+  // これが per-frame 係数との本質的な違い。
+  // 差が出るのは収束の途中なので、1 秒ではなく 0.1 秒で見る
+  // （1 秒後は per-frame でも両方ほぼ収束していて差が 0.005 しかない）。
+  const SECS = 0.1;
+  const rate = rateFromPerFrame(0.16);
+  // 刻み数から dt を出す。フレーム数を丸めると経過時間そのものがずれて、
+  // approach ではなくテストの端数を測ることになる（実際に一度そうなった）。
+  const run = (steps: number) => {
+    let x = 0;
+    for (let i = 0; i < steps; i++) x = approach(x, 1, rate, SECS / steps);
+    return x;
+  };
+  const a = run(3), b = run(6), c = run(15);   // 30 / 60 / 144fps 相当
+  assert.ok(Math.abs(a - c) < 1e-12, `fps で結果が変わってはいけない: ${a} / ${b} / ${c}`);
+
+  // 対照: per-frame 固定だと同じ 0.1 秒で 0.41 と 0.91 に割れる
+  const perFrame = (steps: number) => {
+    let x = 0;
+    for (let i = 0; i < steps; i++) x += (1 - x) * 0.16;
+    return x;
+  };
+  assert.ok(Math.abs(perFrame(3) - perFrame(15)) > 0.4,
+    `per-frame は割れるはず: ${perFrame(3)} / ${perFrame(15)}`);
+});
+
+test('approach は目標を通り過ぎない', () => {
+  const rate = rateFromPerFrame(0.16);
+  // 極端に大きい dt でも行き過ぎない（1 − exp(−rate·dt) は 1 を超えない）
+  for (const dt of [1 / 144, 1 / 60, 0.05, 1, 10]) {
+    const x = approach(0, 1, rate, dt);
+    assert.ok(x <= 1 + 1e-12 && x >= 0, `dt=${dt} で ${x}`);
+  }
+  assert.ok(near(approach(5, 5, rate, 1 / 60), 5), '目標に居るなら動かない');
 });

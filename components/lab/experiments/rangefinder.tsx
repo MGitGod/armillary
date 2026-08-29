@@ -1,46 +1,40 @@
 import React from 'react';
-import { EYE_Z_RATIO, projectOffAxis } from '../../../lib/frustum';
+import {
+  BASELINE,
+  EYE_Z,
+  STAGE_H,
+  STAGE_W,
+  TARGET_Z,
+  eyeXAt,
+  layerDepth,
+  readingAt,
+  ridgeXAt,
+  targetXAt,
+} from '../../../lib/rangefinder';
+import { setText, visibleLoop } from '../raf-loop';
 import type { Experiment } from '../../../lib/lab';
 import {
   RIDGE_LAYERS,
+  cueFilter,
   depthCues,
   ridgeBox,
   ridgePath,
+  ridgeTint,
   stepSpring,
   type Spring,
 } from '../../../lib/parallax';
 
-const STAGE_W = 600;
-const STAGE_H = 420;
-const EYE_Z = STAGE_W * EYE_Z_RATIO;
-/** 基線長。観測者がこの幅だけ横へ移動する。d = B/θ の B。 */
-const BASELINE = STAGE_W;
-/** 標的の実際の深度。読み値の答え合わせ用（画面には出さない）。 */
-const TARGET_Z = -430;
-
 /**
- * 行程 0 の時点の標的位置。
- * 動きを減らす設定では build() が呼ばれないので、これを render() 側で与えないと
- * 標的が SVG 原点に張り付いた静止画になる（#11 で踏んだのと同じ穴）。
+ * 幾何と測距は lib/rangefinder.ts に置いてある（Node で検算できるようにするため）。
+ * この場は座標を読んで DOM に書くだけにする。
+ *
+ * 行程 0 の値は render() が静止画として焼き込む。動きを減らす設定では
+ * build() が呼ばれないので、ここで与えないと標的が SVG 原点に張り付く
+ * （#11 で踏んだのと同じ穴）。
  */
-const TARGET_AT_START = projectOffAxis(
-  { x: 0, y: 0, z: TARGET_Z },
-  { x: (0 - 0.5) * BASELINE, y: 0, z: EYE_Z },
-);
-
-/** 層の深度。z ∈ [0,1] を実際の奥行きへ写す。draw() と render() で同じ式を使う。 */
-const layerDepth = (z: number) => -60 - z * 420;
-
-/**
- * 行程 0 の時点の層の横位置。ばねは y=0 から始まるが、目標はここ。
- * render() 側にも同じ値を置いておかないと、動きを減らす設定で
- * 「観測者が基線の中央に居る」別の絵になり、遠近の縮尺も抜ける。
- */
-const ridgeXAtStart = (z: number) =>
-  projectOffAxis(
-    { x: 0, y: 0, z: layerDepth(z) },
-    { x: (0 - 0.5) * BASELINE, y: 0, z: EYE_Z },
-  ).x;
+const TARGET_X_AT_START = targetXAt(0);
+const ridgeXAtStart = (z: number) => ridgeXAt(0, z);
+const START = readingAt(0);
 
 /**
  * 測距儀。四つの技法の融合であって、並置ではない。
@@ -78,6 +72,7 @@ export const rangefinder: Experiment = {
       >
         {RIDGE_LAYERS.map((L, i) => {
           const box = ridgeBox(L.height);
+          const c = depthCues(L.z);
           return (
             <svg
               key={i}
@@ -90,10 +85,11 @@ export const rangefinder: Experiment = {
                 height: box.height, bottom: box.bottom,
                 zIndex: RIDGE_LAYERS.length - i,
                 willChange: 'transform', transformOrigin: '50% 20%',
-                color: `color-mix(in srgb, #dce8f2 ${(88 - L.z * 66).toFixed(0)}%, #12212e)`,
-                filter: `blur(${depthCues(L.z).blur.toFixed(2)}px) saturate(${depthCues(L.z).saturate.toFixed(2)}) contrast(${depthCues(L.z).contrast.toFixed(2)})`,
+                // #12 と同じ絵。関数を共有して、片方だけ直して食い違うのを防ぐ。
+                color: ridgeTint(L.z),
+                filter: cueFilter(c),
                 // 行程 0 の位置と縮尺。build() を通らない静止画のための初期値。
-                transform: `translate3d(${ridgeXAtStart(L.z).toFixed(2)}px,0,0) scale(${depthCues(L.z).scale})`,
+                transform: `translate3d(${ridgeXAtStart(L.z).toFixed(2)}px,0,0) scale(${c.scale})`,
               }}
             >
               <path d={ridgePath(L.phase, L.amp, L.base)} fill="currentColor" />
@@ -106,7 +102,7 @@ export const rangefinder: Experiment = {
              className="pointer-events-none absolute inset-0" style={{ zIndex: 15 }}>
           <g
             className="rf-target"
-            transform={`translate(${(STAGE_W / 2 + TARGET_AT_START.x).toFixed(2)},${STAGE_H / 2})`}
+            transform={`translate(${(STAGE_W / 2 + TARGET_X_AT_START).toFixed(2)},${STAGE_H / 2})`}
             style={{ color: 'rgb(224 82 58)' }}
           >
             <line x1={-16} y1={0} x2={16} y2={0} stroke="currentColor" strokeWidth={1.4} />
@@ -159,45 +155,33 @@ export const rangefinder: Experiment = {
 
     // ばねの初期位置は render() が置いた行程 0 の位置に合わせる。
     // 0 から始めると、最初のフレームで静止画の位置から大きく飛ぶ。
-    /**
-     * 読み値の書き込み。値が変わったときだけ触る。
-     *
-     * textContent のセッターは、同じ文字列でも子テキストノードを毎回置換する。
-     * 毎フレーム無条件に書くと 60fps でレイアウトに影響する DOM 更新が走り、
-     * 「transform と opacity 以外を毎フレーム動かさない」に反する。
-     */
-    const setText = (el: HTMLElement | null, v: string) => {
-      if (el && el.textContent !== v) el.textContent = v;
-    };
+    // 深度と縮尺は層ごとに固定なので、ループの外で 1 度だけ取る。
+    // 毎フレーム dataset を読み直す必要はない。
+    const zs = ridges.map((el) => Number(el.dataset.z));
+    const scales = zs.map((z) => depthCues(z).scale);
 
-    const springs: Spring[] = ridges.map((el) => ({
-      y: ridgeXAtStart(Number(el.dataset.z)),
-      v: 0,
-    }));
+    // ばねの初期位置は render() が置いた行程 0 の位置に合わせる。
+    // 0 から始めると、最初のフレームで静止画の位置から大きく飛ぶ。
+    const springs: Spring[] = zs.map((z) => ({ y: ridgeXAtStart(z), v: 0 }));
     const state = { p: 0 };
 
     const draw = (dt: number) => {
       // 行程の 0→1 で、観測者が基線の左端から右端へ移動する。
-      const eyeX = (state.p - 0.5) * BASELINE;
-
       ridges.forEach((el, i) => {
-        const z = Number(el.dataset.z);
+        const z = zs[i];
         // 層を「奥にある平面」として視錐台で張り直す。
         // 平行移動と違い、視点が寄った側の壁がせん断して手前に隠れる。
-        const depth = layerDepth(z);
-        const s = projectOffAxis({ x: 0, y: 0, z: depth }, { x: eyeX, y: 0, z: EYE_Z });
         // ばねで遅れて追従させる。深度ごとに剛性が違うので、動きに質量が出る。
-        springs[i] = stepSpring(springs[i], s.x, z, dt);
+        springs[i] = stepSpring(springs[i], ridgeXAt(state.p, z), z, dt);
         el.style.transform =
-          `translate3d(${springs[i].y.toFixed(2)}px,0,0) scale(${depthCues(z).scale})`;
+          `translate3d(${springs[i].y.toFixed(2)}px,0,0) scale(${scales[i]})`;
       });
 
-      // 標的のずれ角。レチクル中心からの角度で測る。
-      const t = projectOffAxis(
-        { x: 0, y: 0, z: TARGET_Z },
-        { x: eyeX, y: 0, z: EYE_Z },
+      // 標的。レチクル中心からのずれがそのまま測る量になる。
+      target.setAttribute(
+        'transform',
+        `translate(${(STAGE_W / 2 + targetXAt(state.p)).toFixed(2)},${STAGE_H / 2})`,
       );
-      target.setAttribute('transform', `translate(${(STAGE_W / 2 + t.x).toFixed(2)},${STAGE_H / 2})`);
 
       // 測距。基線は「最初の観測からどれだけ走査したか」、
       // ずれ角は「消失点基準の標的位置が、最初の観測からどれだけ動いたか」で取る。
@@ -211,19 +195,10 @@ export const rangefinder: Experiment = {
       //   Δθ = |rel − rel0| = t·B  →  EYE_Z·B/Δθ = EYE_Z/t = EYE_Z + |Z|
       //   ∴ |Z| = EYE_Z·B/Δθ − EYE_Z
       // これで機械が標的の深度 430 を復元する（TARGET_Z の真値）。
-      const B = state.p * BASELINE;
-      // 標的のずれを、消失点（無限遠）基準で測る。
-      // これは #11 が「視差 0 の遠景」を基準にしているのと同じ取り方。
-      // 標的自身の初期位置を基準にすると、ずれが大きいほど遠いという逆の関係になり、
-      // d = B/θ とは別の式になってしまう。
-      const rel = t.x - eyeX;                                   // 無限遠を基準にした標的の位置
-      const rel0 = TARGET_AT_START.x - (0 - 0.5) * BASELINE;    // 行程 0 での同じ量
-      const shift = Math.abs(rel - rel0);                       // = B·EYE_Z/(EYE_Z+|Z|)
+      const { B, shift, depth } = readingAt(state.p);
       setText(readB, B.toFixed(0));
       setText(readT, shift.toFixed(3));
-      // d = f·B/θ（測距儀の教科書形。f は焦点距離にあたる EYE_Z）。
-      // f·B/θ は視点から標的までの距離なので、f を引くと画面より奥の深度になる。
-      setText(readD, shift > 0.5 ? (EYE_Z * B / shift - EYE_Z).toFixed(0) : '—');
+      setText(readD, depth === null ? '—' : depth.toFixed(0));
     };
 
     // タイムラインは目標（state.p）を動かすだけ。積分は rAF が持つ。
@@ -234,21 +209,8 @@ export const rangefinder: Experiment = {
     // #14 を pin:false + Component にしたのと同じ理由が、build の中でも効く。
     tl.to(state, { p: 1, duration: 1, ease: 'none' });
 
-    let raf = 0;
-    let prev = 0;
-    let alive = true;
-    const frame = (now: number) => {
-      if (!alive) return;
-      const dt = prev ? Math.min((now - prev) / 1000, 0.05) : 0.016;
-      prev = now;
-      draw(dt);
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
-
-    return () => {
-      alive = false;
-      cancelAnimationFrame(raf);
-    };
+    // 画面に入っているあいだだけ回す。ラボは 15 セクションを同時にマウントするので、
+    // これが無いと別の実験を見ているあいだも積分し続ける。
+    return visibleLoop(root, draw);
   },
 };

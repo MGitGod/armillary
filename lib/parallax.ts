@@ -33,6 +33,12 @@ export type DepthCues = {
  * blur を z^1.6 にしているのは、線形だと手前側でぼけ始めるのが早すぎるため。
  * 1.0 / 1.6 / 2.2 を比べて 1.6 を採った（1.0 は近景が濁り、2.2 は奥が効かない）。
  */
+/*
+ * gain の定義域について:
+ * speed = 1 − 0.72·z·gain が正であるためには gain < 1/0.72 ≈ 1.39 が要る
+ * （z = 1 のとき最も厳しい）。gain はシリーズ内では内部利用のみで、
+ * 呼び出し元はすべて既定値 1 を使う。外部入力に晒すならクランプすること。
+ */
 export const depthCues = (z: number, gain = 1): DepthCues => ({
   speed: 1 - 0.72 * z * gain,
   blur: 3.2 * Math.pow(z, 1.6),
@@ -82,6 +88,29 @@ export const velocitySkew = (velocity: number, z: number) => {
   const raw = velocity * 0.0022 * (1 + 1.6 * z);
   return Math.max(-lim, Math.min(lim, raw));
 };
+
+/**
+ * フレーム時間に依らない指数追従。
+ *
+ * `x += (target − x) * 0.16` や `v *= 0.86` のような **per-frame の固定係数**は
+ * 60fps を暗黙の前提にした書き方で、120Hz では倍の速さ、30fps では半分の速さで
+ * 収束してしまう。rate [1/s] を与えて dt で積分すれば refresh rate に依らない。
+ *
+ * ばね（stepSpring）は最初から dt を取っていたが、その周りの減衰と平滑化だけが
+ * per-frame のまま残っていた。レビューで 2 ファイルに同じ形があると指摘されて揃えた。
+ */
+export const approach = (current: number, target: number, rate: number, dt: number) =>
+  current + (target - current) * (1 - Math.exp(-rate * dt));
+
+/**
+ * 60fps 換算の per-frame 係数を rate [1/s] に直す。
+ * 既存の見た目を変えずに dt 対応へ移すための橋渡し。
+ *
+ *   rate = −fps · ln(1 − perFrame)
+ *   0.10 → 6.32 / 0.16 → 10.46 / 0.14（= 1 − 0.86）→ 9.05
+ */
+export const rateFromPerFrame = (perFrame: number, fps = 60) =>
+  -fps * Math.log(1 - perFrame);
 
 /** 深度ごとのばね剛性。奥ほど柔らかく、遅れて追いつく。 */
 export const springStiffness = (z: number) => 26 - 17 * z;
@@ -142,6 +171,22 @@ export const ridgePath = (phase: number, amp: number, base: number) => {
   }
   return d + `L${RIDGE_W} ${RIDGE_FOOT}Z`;
 };
+
+/**
+ * 稜線の色。奥ほど地の色に寄せる ── 大気遠近の主成分。
+ *
+ * 88% → 22% の範囲は、手前が「はっきり見える」、最奥が「空とほぼ同化する」で決めた。
+ * 上限を 100% にすると手前だけ浮いて貼り絵に見え、下限を 40% より上げると
+ * 最奥が独立した層として読めてしまい、奥行きが 3 層ぶんに縮む。
+ *
+ * #12 と #15 が同じ絵を使うので、片方だけ直して食い違うことがないようここに置く。
+ */
+export const ridgeTint = (z: number) =>
+  `color-mix(in srgb, #dce8f2 ${(88 - z * 66).toFixed(0)}%, #12212e)`;
+
+/** depthCues から CSS の filter 文字列を組む。#12 と #15 で共通。 */
+export const cueFilter = (c: DepthCues) =>
+  `blur(${c.blur.toFixed(2)}px) saturate(${c.saturate.toFixed(2)}) contrast(${c.contrast.toFixed(2)})`;
 
 /** 4 層の既定値。手前ほど低く大きく、奥ほど高く薄い。 */
 export const RIDGE_LAYERS = [0, 1, 2, 3].map((i) => {

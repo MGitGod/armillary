@@ -2,7 +2,14 @@
 import React, { useEffect, useRef } from 'react';
 import { ScrollTrigger } from '../../../lib/gsap-config';
 import type { Experiment } from '../../../lib/lab';
-import { stepSpring, velocitySkew, type Spring } from '../../../lib/parallax';
+import {
+  approach,
+  rateFromPerFrame,
+  stepSpring,
+  velocitySkew,
+  type Spring,
+} from '../../../lib/parallax';
+import { setText, visibleLoop } from '../raf-loop';
 
 const WORDS = [
   { text: 'SURFACE', z: 0.00, size: 62, top: 40 },
@@ -10,7 +17,19 @@ const WORDS = [
   { text: 'DEEP',    z: 0.67, size: 40, top: 216 },
   { text: 'FLOOR',   z: 1.00, size: 30, top: 288 },
 ];
+/**
+ * 層が動く総量 [px]。ステージ高 380px の 55% ほど。
+ * これより大きいと最前面の語が枠外へ抜け、小さいと 4 層の差が読めない。
+ */
 const TRAVEL = 210;
+
+/**
+ * 速度の減衰と skew の平滑化。もとは per-frame の 0.86 と 0.16 だったが、
+ * それだと 120Hz で倍の速さに、30fps で半分の速さになる。
+ * 60fps 換算で同じ見た目になる rate に直してある（lib/parallax.ts の approach を参照）。
+ */
+const DECAY_RATE = rateFromPerFrame(1 - 0.86);  // ≈ 9.05 /s
+const SKEW_RATE = rateFromPerFrame(0.16);       // ≈ 10.46 /s
 
 /**
  * 速度視差。
@@ -46,9 +65,6 @@ function VelocityParallax() {
     const skews = nodes.map(() => 0);
     let velocity = 0;
     let progress = 0;
-    let raf = 0;
-    let prev = 0;
-    let alive = true;
 
     const st = ScrollTrigger.create({
       trigger: el,
@@ -60,36 +76,27 @@ function VelocityParallax() {
       },
     });
 
-    const frame = (now: number) => {
-      if (!alive) return;
-      const dt = prev ? Math.min((now - prev) / 1000, 0.05) : 0.016;
-      prev = now;
+    const stopLoop = visibleLoop(el, (dt) => {
       // スクロールが止まると ScrollTrigger は onUpdate を呼ばなくなるので、
       // 速度は自前で減衰させる。放置すると最後の値が残り続ける。
-      velocity *= 0.86;
+      velocity = approach(velocity, 0, DECAY_RATE, dt);
 
       let maxLag = 0;
       nodes.forEach((node, i) => {
         const z = WORDS[i].z;
         const target = -progress * TRAVEL * (1 - 0.55 * z);
         springs[i] = stepSpring(springs[i], target, z, dt);
-        const want = velocitySkew(velocity, z);
-        skews[i] += (want - skews[i]) * 0.16;
+        skews[i] = approach(skews[i], velocitySkew(velocity, z), SKEW_RATE, dt);
         node.style.transform =
           `translate3d(0,${springs[i].y.toFixed(2)}px,0) skewY(${skews[i].toFixed(2)}deg)`;
         maxLag = Math.max(maxLag, Math.abs(target - springs[i].y));
       });
-      if (read.current) {
-        read.current.textContent =
-          `velocity ${velocity.toFixed(0)} px/s · 最大遅れ ${maxLag.toFixed(1)} px`;
-      }
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
+      setText(read.current,
+        `velocity ${velocity.toFixed(0)} px/s · 最大遅れ ${maxLag.toFixed(1)} px`);
+    });
 
     return () => {
-      alive = false;
-      cancelAnimationFrame(raf);
+      stopLoop();
       st.kill();
     };
   }, []);

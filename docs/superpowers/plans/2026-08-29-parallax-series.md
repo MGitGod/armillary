@@ -39,9 +39,11 @@
 |---|---|
 | `lib/parallax.ts` | 深度 → 手がかりの写像、移動量の上限、速度 skew、ばね、稜線パス生成。#12 #14 #15 が使う |
 | `lib/parallax.test.ts` | 上の回帰テスト |
-| `lib/parallax-astro.ts` | 視差楕円、視差角 → 距離、星のデータ。#11 #15 が使う |
+| `lib/parallax-astro.ts` | 視差楕円、視差角 → 距離、星のデータ。#11 が使う |
 | `lib/parallax-astro.test.ts` | 上の回帰テスト |
 | `lib/frustum.ts` | 非対称視錐台の投影と、比較用の平行移動。#13 #15 が使う |
+| `lib/rangefinder.ts` | #15 の幾何と測距。純粋関数のみ。実装後に切り出した |
+| `components/lab/raf-loop.ts` | 可視性ゲート付き rAF ループと setText。DOM を触るので lib/ には置けない |
 | `lib/frustum.test.ts` | 上の回帰テスト |
 | `components/lab/experiments/stellar-parallax.tsx` | #11 |
 | `components/lab/experiments/depth-stack.tsx` | #12 |

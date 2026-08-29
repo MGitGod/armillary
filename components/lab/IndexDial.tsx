@@ -136,25 +136,52 @@ export default function IndexDial({ experiments }: { experiments: Experiment[] }
             />
           ))}
 
-          {/* 実験ごとの弧。長さがそのまま実験の長さ。 */}
+          {/*
+            実験ごとの弧。長さがそのまま実験の長さ。
+
+            当たり判定は見た目とは別に持つ。実測（15 実験・92px 表示）で、
+            最も短い弧は **3.8px × 1.84px ≈ 7px²** しかなかった。
+            WCAG 2.5.8 が求める 24×24px には遠く、しかも弧長で 24px を得るには
+            R=34 で 43.9° 必要 ── 15 実験なら 659° になり、この大きさでは幾何的に不可能。
+
+            そこで透明な太い線を重ねて、少なくとも半径方向は指で追えるようにする。
+            同じ 92px 表示で 3.8px × 1.84px ≈ 7px² が 3.8px × 14.7px ≈ 56px² になる（約 8 倍）。
+            それでも 576px² には遠い。弧長そのものは伸ばせないので、
+            これは緩和であって解決ではない。キーボードと支援技術には
+            下の sr-only の nav が実体のボタンを出しているので、そちらが正規の経路。
+          */}
           {ranges.map((r, i) => {
             const on = i === active;
             const hot = i === hovered;
+            // 隣と 2° 空けて、境目が読めるようにする
+            const d = arcPath(R, r.from + 1, Math.max(r.from + 1.5, r.to - 1));
+            const handlers = {
+              onPointerEnter: () => setHovered(i),
+              onPointerLeave: () => setHovered((h: number | null) => (h === i ? null : h)),
+              onClick: () => jump(r),
+            };
             return (
-              <path
-                key={r.id}
-                // 隣と 2° 空けて、境目が読めるようにする
-                d={arcPath(R, r.from + 1, Math.max(r.from + 1.5, r.to - 1))}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={on || hot ? 3.5 : 2}
-                strokeLinecap="butt"
-                opacity={on ? 0.95 : hot ? 0.7 : 0.3}
-                className="pointer-events-auto cursor-pointer transition-all duration-200"
-                onPointerEnter={() => setHovered(i)}
-                onPointerLeave={() => setHovered((h) => (h === i ? null : h))}
-                onClick={() => jump(r)}
-              />
+              <g key={r.id}>
+                {/* 当たり判定。塗らないので見えないが、stroke の幅ぶん掴める */}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={16}
+                  strokeLinecap="butt"
+                  className="pointer-events-auto cursor-pointer"
+                  {...handlers}
+                />
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={on || hot ? 3.5 : 2}
+                  strokeLinecap="butt"
+                  opacity={on ? 0.95 : hot ? 0.7 : 0.3}
+                  className="pointer-events-none transition-all duration-200"
+                />
+              </g>
             );
           })}
 

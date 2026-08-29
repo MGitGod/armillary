@@ -2,10 +2,12 @@ import React from 'react';
 import type { Experiment } from '../../../lib/lab';
 import {
   RIDGE_LAYERS,
+  cueFilter,
   depthCues,
   maxTravel,
   ridgeBox,
   ridgePath,
+  ridgeTint,
 } from '../../../lib/parallax';
 
 const STAGE_H = 420;
@@ -47,6 +49,7 @@ export const depthStack: Experiment = {
       >
         {RIDGE_LAYERS.map((L, i) => {
           const box = ridgeBox(L.height);
+          const c = depthCues(L.z);
           return (
             <svg
               key={i}
@@ -62,13 +65,13 @@ export const depthStack: Experiment = {
                 zIndex: RIDGE_LAYERS.length - i,
                 willChange: 'transform',
                 transformOrigin: '50% 20%',
-                // 奥ほど地の色に寄る。大気遠近の主成分。
-                color: `color-mix(in srgb, #dce8f2 ${(88 - L.z * 66).toFixed(0)}%, #12212e)`,
+                // 奥ほど地の色に寄る。大気遠近の主成分。#15 と同じ関数を使う。
+                color: ridgeTint(L.z),
                 // 動きを減らす設定では build() が呼ばれず applyCues() も走らないので、
                 // 初期値をここで与えておく。与えないと静止画から大気遠近が丸ごと抜ける。
-                filter: `blur(${depthCues(L.z).blur.toFixed(2)}px) saturate(${depthCues(L.z).saturate.toFixed(2)}) contrast(${depthCues(L.z).contrast.toFixed(2)})`,
+                filter: cueFilter(c),
                 // 行程 0 では移動量が 0 なので、transform は scale だけでよい。
-                transform: `scale(${depthCues(L.z).scale})`,
+                transform: `scale(${c.scale})`,
               }}
             >
               <path d={ridgePath(L.phase, L.amp, L.base)} fill="currentColor" />
