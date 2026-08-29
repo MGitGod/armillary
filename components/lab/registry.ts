@@ -12,6 +12,7 @@ import { radialBurst } from './experiments/radial-burst';
 import { stellarParallax } from './experiments/stellar-parallax';
 import { depthStack } from './experiments/depth-stack';
 import { offAxisWindow } from './experiments/off-axis-window';
+import { velocityParallax } from './experiments/velocity-parallax';
 
 /**
  * ラボの棚。並び順がそのまま見せる順番になる。
@@ -33,4 +34,5 @@ export const experiments: Experiment[] = [
   stellarParallax,
   depthStack,
   offAxisWindow,
+  velocityParallax,
 ];
