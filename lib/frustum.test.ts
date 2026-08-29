@@ -83,3 +83,27 @@ test('シャフトは各深度に 4 隅を持ち、手前から奥へ並ぶ', ()
   const r0 = rings[0];
   assert.ok(near(width(r0), SHAFT_HALF * 2));
 });
+
+test('projectNaive は既定の depthScale=350 で、移動量を数値として決める', () => {
+  const eye: Eye = { x: 10, y: 0, z: 430 };
+  const p = { x: 0, y: 0, z: -350 };
+  // -p.z / depthScale = 350 / 350 = 1 → x = 0 + 10*1 = 10
+  const nv = projectNaive(p, eye);
+  assert.ok(near(nv.x, 10) && near(nv.y, 0));
+});
+
+test('projectNaive に depthScale を明示的に渡すと、その値が移動量の数値に反映される', () => {
+  const eye: Eye = { x: 10, y: 0, z: 430 };
+  const p = { x: 0, y: 0, z: -350 };
+  // -p.z / depthScale = 350 / 175 = 2 → x = 0 + 10*2 = 20
+  const nv = projectNaive(p, eye, 175);
+  assert.ok(near(nv.x, 20) && near(nv.y, 0));
+});
+
+test('projectNaive は y 方向にも同じ式で depthScale を適用する', () => {
+  const eye: Eye = { x: 0, y: 10, z: 430 };
+  const p = { x: 0, y: 0, z: -350 };
+  // -p.z / depthScale = 350 / 350 = 1 → y = 0 + 10*1 = 10
+  const nv = projectNaive(p, eye);
+  assert.ok(near(nv.x, 0) && near(nv.y, 10));
+});
