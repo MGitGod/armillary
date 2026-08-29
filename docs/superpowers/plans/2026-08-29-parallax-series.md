@@ -473,6 +473,25 @@ test('黄道の極では真円、黄道面上では直線に退化する', () =>
   assert.ok(near(flat.minor, 0), '黄道面上では短軸が 0（直線）');
 });
 
+test('軌跡そのものが、極では真円、黄道面上では直線になる', () => {
+  // ellipseAxes（半軸）だけを見ても、この主張は固定できない。
+  // 実際に軌跡を生む parallaxOffset を臨界値で直接叩く。
+  // ここを空けておくと、ellipseAxes を触らずに parallaxOffset だけを
+  // 壊す変更が、テストを全部すり抜ける。
+  const p = 0.42;
+  const thetas = Array.from({ length: 12 }, (_, i) => (i / 12) * Math.PI * 2);
+  for (const beta of [90, -90]) {
+    for (const th of thetas) {
+      const o = parallaxOffset(p, beta, th);
+      assert.ok(near(o.dx * o.dx + o.dy * o.dy, p * p, 1e-9),
+        `β=${beta} θ=${th.toFixed(2)} で真円から外れた`);
+    }
+  }
+  for (const th of thetas) {
+    assert.ok(near(parallaxOffset(p, 0, th).dy, 0), '黄道面上では dy が常に 0');
+  }
+});
+
 test('半軸は ϖ と ϖ·|sin β|', () => {
   const e = ellipseAxes(0.3792, -39.6);
   assert.ok(near(e.major, 0.3792));
