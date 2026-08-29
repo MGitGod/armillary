@@ -137,9 +137,13 @@ export const rangefinder: Experiment = {
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 font-mono text-[11px] text-white/40">
+        {/*
+          初期値は行程 0 の実値そのもの。基線をまだ走査していないので
+          B = 0、Δθ = 0、深度は未定義。動きを減らす設定でもこの表示で正しい。
+        */}
         <span>基線 B = <b className="rf-b font-medium text-white/80">0</b> / {BASELINE}</span>
-        <span>ずれ角 θ = <b className="rf-theta font-medium text-white/80">0.000</b></span>
-        <span>d = B/θ = <b className="rf-d font-medium" style={{ color: 'rgb(224 82 58)' }}>—</b></span>
+        <span>ずれ角 Δθ = <b className="rf-theta font-medium text-white/80">0.000</b></span>
+        <span>推定深度 = <b className="rf-d font-medium" style={{ color: 'rgb(224 82 58)' }}>—</b></span>
         <span className="text-white/25">#11 と同じ式。d[pc] = 1/ϖ はこの B = 1 AU の場合</span>
       </div>
     </div>
@@ -155,6 +159,17 @@ export const rangefinder: Experiment = {
 
     // ばねの初期位置は render() が置いた行程 0 の位置に合わせる。
     // 0 から始めると、最初のフレームで静止画の位置から大きく飛ぶ。
+    /**
+     * 読み値の書き込み。値が変わったときだけ触る。
+     *
+     * textContent のセッターは、同じ文字列でも子テキストノードを毎回置換する。
+     * 毎フレーム無条件に書くと 60fps でレイアウトに影響する DOM 更新が走り、
+     * 「transform と opacity 以外を毎フレーム動かさない」に反する。
+     */
+    const setText = (el: HTMLElement | null, v: string) => {
+      if (el && el.textContent !== v) el.textContent = v;
+    };
+
     const springs: Spring[] = ridges.map((el) => ({
       y: ridgeXAtStart(Number(el.dataset.z)),
       v: 0,
@@ -184,12 +199,26 @@ export const rangefinder: Experiment = {
       );
       target.setAttribute('transform', `translate(${(STAGE_W / 2 + t.x).toFixed(2)},${STAGE_H / 2})`);
 
-      const b = Math.abs(eyeX * 2);
-      const theta = Math.abs(t.x);
-      if (readB) readB.textContent = b.toFixed(0);
-      if (readT) readT.textContent = theta.toFixed(3);
-      // d = B/θ。基線が伸びるほど読みが安定する（測距儀そのものの性質）。
-      if (readD) readD.textContent = theta > 0.5 ? `${(b / theta).toFixed(1)}` : '—';
+      // 測距。基線は「最初の観測からどれだけ走査したか」、
+      // ずれ角は「最初の観測からどれだけ動いたか」で取る。
+      //
+      // 中央からの距離で測ってはいけない。それだと基線が減ってから増える形になり、
+      // 死角が区間の中央に来るうえ、B も Δθ も |eyeX| に比例するので比が定数になり、
+      // 「測っている」ことにならない。
+      //
+      // 逆算の式:
+      //   t  = EYE_Z / (EYE_Z + |Z|)、標的の投影 x = eyeX·(1 − t)
+      //   Δθ = B·(1 − t)  →  B/Δθ = 1/(1 − t) = (EYE_Z + |Z|) / |Z|
+      //   ∴ |Z| = EYE_Z·Δθ / (B − Δθ)
+      // これで機械が標的の深度 430 を復元する（TARGET_Z の真値）。
+      const B = state.p * BASELINE;
+      const shift = Math.abs(t.x - TARGET_AT_START.x);
+      setText(readB, B.toFixed(0));
+      setText(readT, shift.toFixed(3));
+      // 基線が開くまでは 0/0 で本当に未定義。開くと真値に錠が下りる。
+      setText(readD, shift > 0.5 && B > shift
+        ? (EYE_Z * shift / (B - shift)).toFixed(0)
+        : '—');
     };
 
     // タイムラインは目標（state.p）を動かすだけ。積分は rAF が持つ。
