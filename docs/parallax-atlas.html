@@ -1,0 +1,1224 @@
+<title>視差見本帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+
+<style>
+/* ─────────────────────────────────────────────
+   青写真（cyanotype）。明るいほうが陽画、暗いほうが陰画。
+   同じ図面を二つの視点から見る、という主題そのもののなぞらえ。
+   ───────────────────────────────────────────── */
+:root{
+  --paper:#EDF1F5;
+  --ground:#E1E8EF;
+  --panel:#F7F9FB;
+  --ink:#0F2C47;
+  --ink-soft:#53718B;
+  --ink-faint:#8AA2B6;
+  --rule:rgba(15,44,71,.16);
+  --rule-2:rgba(15,44,71,.34);
+  --mark:#CE3F22;
+  --mark-soft:rgba(206,63,34,.14);
+  --sky-far:#C9D8E4;
+  --sky-near:#E9EEF3;
+  --shadow:0 1px 0 rgba(15,44,71,.06), 0 12px 32px -20px rgba(15,44,71,.5);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#07182A;
+    --ground:#0B2135;
+    --panel:#0C2337;
+    --ink:#DCE8F2;
+    --ink-soft:#8CA7BE;
+    --ink-faint:#5B7791;
+    --rule:rgba(220,232,242,.16);
+    --rule-2:rgba(220,232,242,.36);
+    --mark:#FF6A45;
+    --mark-soft:rgba(255,106,69,.16);
+    --sky-far:#0E2A42;
+    --sky-near:#071626;
+    --shadow:0 1px 0 rgba(255,255,255,.03), 0 14px 34px -22px #000;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#07182A;
+  --ground:#0B2135;
+  --panel:#0C2337;
+  --ink:#DCE8F2;
+  --ink-soft:#8CA7BE;
+  --ink-faint:#5B7791;
+  --rule:rgba(220,232,242,.16);
+  --rule-2:rgba(220,232,242,.36);
+  --mark:#FF6A45;
+  --mark-soft:rgba(255,106,69,.16);
+  --sky-far:#0E2A42;
+  --sky-near:#071626;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 14px 34px -22px #000;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Archivo','Zen Kaku Gothic New',system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{text-wrap:balance;margin:0}
+p{margin:0}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--mark);outline-offset:3px;border-radius:2px}
+
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.lab{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint)}
+.serif{font-family:'Bodoni Moda',Georgia,serif}
+
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+/* ── 計器バー ───────────────────────────────── */
+.bar{
+  position:sticky;top:0;z-index:40;
+  background:color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--rule);
+}
+.bar .wrap{display:flex;align-items:center;gap:18px;height:46px}
+.bar .id{font-family:'Bodoni Moda',Georgia,serif;font-size:16px;letter-spacing:.02em;white-space:nowrap}
+.bar nav{display:flex;gap:2px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.bar nav::-webkit-scrollbar{display:none}
+.bar nav a{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
+  text-decoration:none;color:var(--ink-soft);padding:5px 8px;border-radius:2px;white-space:nowrap;
+}
+.bar nav a:hover{color:var(--mark);background:var(--mark-soft)}
+.sw{
+  display:inline-flex;align-items:center;gap:7px;border:1px solid var(--rule-2);
+  background:transparent;color:var(--ink-soft);cursor:pointer;border-radius:2px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
+  padding:5px 9px;text-transform:uppercase;
+}
+.sw:hover{color:var(--ink);border-color:var(--ink-soft)}
+.sw .led{width:6px;height:6px;border-radius:50%;background:var(--mark);box-shadow:0 0 6px var(--mark)}
+.sw[aria-pressed="false"] .led{background:var(--ink-faint);box-shadow:none}
+
+/* ── 表題 ──────────────────────────────────── */
+.head{padding:88px 0 52px;position:relative;overflow:hidden}
+.head .plate-title{position:relative;display:inline-block;line-height:.86}
+.head .plate-title span{
+  display:block;font-family:'Bodoni Moda',Georgia,serif;font-weight:400;
+  font-size:clamp(58px,13vw,150px);letter-spacing:-.015em;
+}
+/* 表題そのものを二視点でずらす。主題の自己言及。 */
+.head .ghost{position:absolute;inset:0;color:var(--mark);opacity:.5;pointer-events:none;
+  mix-blend-mode:multiply;will-change:transform}
+:root[data-theme="dark"] .head .ghost{mix-blend-mode:screen}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .head .ghost{mix-blend-mode:screen}}
+.head .jp{margin-top:26px;font-size:17px;max-width:60ch;color:var(--ink-soft);line-height:1.95}
+.head .meta{margin-top:30px;display:flex;flex-wrap:wrap;gap:8px 26px;border-top:1px solid var(--rule);padding-top:14px}
+
+/* ── 汎用パネル ─────────────────────────────── */
+.section{padding:56px 0;border-top:1px solid var(--rule)}
+.section > .wrap > h2{
+  font-family:'Bodoni Moda',Georgia,serif;font-weight:400;font-size:clamp(28px,4.4vw,42px);
+  line-height:1.12;letter-spacing:-.01em;
+}
+.lede{margin-top:14px;max-width:64ch;color:var(--ink-soft);font-size:15px}
+
+/* 4軸 */
+.axes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;
+  margin-top:34px;background:var(--rule);border:1px solid var(--rule)}
+.axis{background:var(--panel);padding:20px}
+.axis h3{font-size:13px;font-weight:600;letter-spacing:.02em;margin-bottom:2px}
+.axis .n{font-family:'Bodoni Moda',Georgia,serif;font-size:34px;line-height:1;color:var(--mark);opacity:.85}
+.axis ul{margin:12px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.axis li{font-size:13px;color:var(--ink-soft);padding-left:14px;position:relative;line-height:1.55}
+.axis li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:1px;background:var(--rule-2)}
+.axis li b{color:var(--ink);font-weight:600}
+
+/* ── 図版 ──────────────────────────────────── */
+.plate{border-top:1px solid var(--rule);padding:60px 0}
+.plate-hd{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.plate-no{font-family:'Bodoni Moda',Georgia,serif;font-size:15px;letter-spacing:.28em;color:var(--mark)}
+.plate-hd h2{font-family:'Bodoni Moda',Georgia,serif;font-weight:400;font-size:clamp(30px,5vw,46px);line-height:1.05;letter-spacing:-.01em}
+.plate-jp{font-size:14px;color:var(--ink-soft);letter-spacing:.06em}
+.plate-body{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:34px;margin-top:26px;align-items:start}
+@media(max-width:880px){.plate-body{grid-template-columns:1fr;gap:26px}}
+
+.stagebox{border:1px solid var(--rule-2);background:var(--panel);position:relative;box-shadow:var(--shadow)}
+.stagebox .cap{display:flex;justify-content:space-between;gap:12px;align-items:center;
+  padding:8px 12px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.controls{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-top:1px solid var(--rule)}
+.chip{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--rule-2);background:transparent;color:var(--ink-soft);
+  padding:4px 9px;border-radius:2px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+}
+.chip:hover{border-color:var(--ink-soft);color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--mark);border-color:var(--mark);color:#fff}
+:root[data-theme="dark"] .chip[aria-pressed="true"]{color:#07182A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chip[aria-pressed="true"]{color:#07182A}}
+
+.notes h3{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:7px}
+.notes p{font-size:14px;color:var(--ink-soft);line-height:1.85}
+.notes p b, .notes p strong{color:var(--ink);font-weight:600}
+.notes > * + h3{margin-top:22px}
+.spec{border-top:1px solid var(--rule);margin-top:22px;padding-top:14px;
+  display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:12px}
+.spec dt{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);white-space:nowrap;padding-top:2px}
+.spec dd{margin:0;color:var(--ink-soft)}
+.eq{margin-top:18px;border-left:2px solid var(--mark);padding:9px 0 9px 13px;
+  font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.9;color:var(--ink);
+  overflow-x:auto;white-space:pre}
+.warn{margin-top:18px;border:1px solid var(--mark);background:var(--mark-soft);padding:11px 13px;font-size:13px;line-height:1.75}
+.warn b{color:var(--mark)}
+
+/* 読み値 */
+.readout{display:flex;flex-wrap:wrap;gap:3px 20px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft)}
+.readout b{color:var(--mark);font-weight:500}
+
+/* 内部スクローラ */
+.scroller{height:400px;overflow-y:auto;overflow-x:hidden;position:relative;
+  scrollbar-width:thin;scrollbar-color:var(--rule-2) transparent}
+.scroller::-webkit-scrollbar{width:8px}
+.scroller::-webkit-scrollbar-thumb{background:var(--rule-2)}
+.tall{height:1500px;position:relative}
+.stage{position:sticky;top:0;height:400px;overflow:hidden;background:linear-gradient(var(--sky-far),var(--sky-near))}
+.scrollhint{position:absolute;right:10px;bottom:10px;z-index:5;pointer-events:none;
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-faint);background:color-mix(in srgb,var(--panel) 82%,transparent);padding:3px 7px;border:1px solid var(--rule)}
+
+.ridge{position:absolute;left:-8%;width:116%;display:block;will-change:transform;transform-origin:50% 20%}
+.reticle{position:absolute;inset:0;pointer-events:none}
+
+/* 星表 */
+.startable{width:100%;min-width:430px;border-collapse:collapse;font-size:12px;margin-top:16px}
+.startable th{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-faint);text-align:right;font-weight:400;padding:0 0 6px;border-bottom:1px solid var(--rule)}
+.startable th:first-child{text-align:left}
+.startable td{padding:5px 0;border-bottom:1px solid var(--rule);text-align:right;
+  font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.startable td:first-child{text-align:left;font-family:'Archivo','Zen Kaku Gothic New',sans-serif;color:var(--ink);cursor:pointer}
+.startable tr[aria-selected="true"] td{color:var(--mark)}
+.startable tr[aria-selected="true"] td:first-child{color:var(--mark);font-weight:600}
+.startable tr:hover td:first-child{color:var(--mark)}
+.startable td.out{color:var(--ink-faint)}
+
+/* 並置比較 */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule-2)}
+@media(max-width:620px){.duo{grid-template-columns:1fr}}
+.duo > div{background:var(--panel);position:relative}
+.duo .tag{position:absolute;top:8px;left:10px;z-index:3;font-family:'IBM Plex Mono',monospace;
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+  background:color-mix(in srgb,var(--panel) 88%,transparent);padding:2px 6px;border:1px solid var(--rule)}
+.duo .tag.hit{color:var(--mark)}
+
+/* Plate V の語 */
+.vword{position:absolute;left:0;width:100%;text-align:center;
+  font-family:'Bodoni Moda',Georgia,serif;line-height:.9;white-space:nowrap;will-change:transform}
+
+/* Plate VI CSS のみ */
+.p6 .scroller{height:300px}
+.p6 .tall{height:900px}
+.p6a{perspective:2px;perspective-origin:0 50%}
+.p6a .grp{position:relative;height:620px;transform-style:preserve-3d}
+.p6a .lyr{position:absolute;top:0;left:0;width:100%;height:300px;transform-origin:0 50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Bodoni Moda',Georgia,serif;font-size:44px}
+.p6a .l-back{transform:translateZ(-4px) scale(3);color:var(--ink-faint)}
+.p6a .l-mid{transform:translateZ(-2px) scale(2);color:var(--ink-soft)}
+.p6a .l-front{transform:translateZ(0);color:var(--mark)}
+.p6b .grp{position:relative;height:620px}
+.p6b .lyr{position:sticky;top:0;height:300px;margin-bottom:-300px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Bodoni Moda',Georgia,serif;font-size:44px}
+@supports (animation-timeline: scroll()){
+  .p6b .lyr{animation:p6shift linear both;animation-timeline:scroll(nearest)}
+  .p6b .l-back{--d:-25px;color:var(--ink-faint)}
+  .p6b .l-mid{--d:-70px;color:var(--ink-soft)}
+  .p6b .l-front{--d:-115px;color:var(--mark)}
+}
+@keyframes p6shift{to{transform:translateY(var(--d,0))}}
+.badge{display:inline-flex;gap:6px;align-items:center;font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--ink-faint)}
+.badge.ok .dot{background:var(--mark);box-shadow:0 0 6px var(--mark)}
+.badge.ok{color:var(--mark)}
+
+/* 落とし穴 */
+.pit{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1px;
+  margin-top:32px;background:var(--rule);border:1px solid var(--rule)}
+.pit > div{background:var(--panel);padding:20px}
+.pit h3{font-size:13px;font-weight:600;margin-bottom:8px}
+.pit p{font-size:13px;color:var(--ink-soft);line-height:1.8}
+.num{font-family:'Bodoni Moda',Georgia,serif;font-size:30px;color:var(--mark);line-height:1;display:block;margin-bottom:8px}
+
+.srcs{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:4px 26px;margin-top:24px}
+.srcs a{font-size:12.5px;color:var(--ink-soft);text-decoration:none;padding:3px 0;
+  border-bottom:1px solid transparent;display:block}
+.srcs a:hover{color:var(--mark);border-bottom-color:var(--rule-2)}
+
+footer{border-top:1px solid var(--rule);padding:30px 0 60px;color:var(--ink-faint);font-size:12px}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+
+<div class="bar">
+  <div class="wrap">
+    <span class="id">視差見本帳</span>
+    <nav aria-label="図版">
+      <a href="#p1">I 恒星視差</a>
+      <a href="#p2">II 深度層</a>
+      <a href="#p3">III 反転</a>
+      <a href="#p4">IV 覗き窓</a>
+      <a href="#p5">V 速度</a>
+      <a href="#p6">VI ZERO-JS</a>
+    </nav>
+    <button class="sw" id="motionSw" aria-pressed="true"><span class="led"></span>Motion</button>
+  </div>
+</div>
+
+<header class="head">
+  <div class="wrap">
+    <div class="plate-title" id="masthead">
+      <span>PARALLAX</span>
+      <span class="ghost" aria-hidden="true">PARALLAX</span>
+    </div>
+    <p class="jp">同じものを二つの視点から見ると、近いものほど大きくずれる。<br>
+      Web で「パララックス」と呼ばれているものは、この一文の実装が四つの軸に分かれて散らばった結果にすぎない。
+      軸を分けて並べ直すと、効くものと効かないものがはっきりする。</p>
+    <div class="meta">
+      <span class="lab">6 Plates</span>
+      <span class="lab">Live · 依存ライブラリ 0</span>
+      <span class="lab">2026</span>
+    </div>
+  </div>
+</header>
+
+<section class="section">
+  <div class="wrap">
+    <h2>四つの軸</h2>
+    <p class="lede">「パララックス」が広義なのは、別々の軸の話が同じ名前で呼ばれているから。
+      分解すると、各実装がどこに位置しているのかが座標で言えるようになる。以降の各図版には、この四軸での座標を付けてある。</p>
+    <div class="axes">
+      <div class="axis">
+        <span class="n">1</span>
+        <h3>何が駆動するか</h3>
+        <ul>
+          <li><b>スクロール位置</b>（古典）</li>
+          <li><b>スクロール速度</b>（遅れ・skew）</li>
+          <li><b>ポインタ位置</b></li>
+          <li><b>デバイスの傾き</b>（gyro）</li>
+          <li><b>頭部位置</b>（webcam）</li>
+          <li><b>時間</b>（自律ドリフト）</li>
+        </ul>
+      </div>
+      <div class="axis">
+        <span class="n">2</span>
+        <h3>何がずれるか</h3>
+        <ul>
+          <li><b>DOM レイヤー</b>（translate3d）</li>
+          <li><b>ピクセル単位</b>（深度マップで UV をずらす）</li>
+          <li><b>3D の実ジオメトリ</b></li>
+          <li><b>テクスチャ座標</b>（POM）</li>
+          <li><b>文字</b>（行・グリフ単位）</li>
+        </ul>
+      </div>
+      <div class="axis">
+        <span class="n">3</span>
+        <h3>奥行きをどう成立させるか</h3>
+        <ul>
+          <li>速度差のみ — <b>最弱</b></li>
+          <li>速度差＋スケール補正</li>
+          <li>速度差＋<b>大気遠近</b></li>
+          <li><b>遮蔽</b> — 単眼手がかりで最強</li>
+          <li><b>真の透視投影</b>（非対称視錐台）</li>
+        </ul>
+      </div>
+      <div class="axis">
+        <span class="n">4</span>
+        <h3>何の上で動かすか</h3>
+        <ul>
+          <li>CSS scroll-driven animations</li>
+          <li>CSS 3D（perspective: 1px）</li>
+          <li>GSAP ScrollTrigger scrub</li>
+          <li>WebGL / WebGPU シェーダ</li>
+          <li>SVG filter（feDisplacementMap）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PLATE I ══ -->
+<section class="plate" id="p1">
+  <div class="wrap">
+    <div class="plate-hd">
+      <span class="plate-no">PLATE I</span>
+      <h2>Stellar Parallax</h2>
+      <span class="plate-jp">恒星視差 — 視差で距離を測る</span>
+    </div>
+    <div class="plate-body">
+      <div>
+        <div class="stagebox">
+          <div class="cap">
+            <span class="lab">観測：地球軌道の両端（基線 2 AU）</span>
+            <span class="readout" id="p1read"></span>
+          </div>
+          <svg id="p1svg" viewBox="0 0 620 350" style="display:block;width:100%;height:auto;background:linear-gradient(var(--sky-far),var(--sky-near))" role="img" aria-label="恒星視差の図。近い星ほど大きな視差楕円を描く。"></svg>
+          <div class="controls">
+            <button class="chip" id="p1play" aria-pressed="true">▶ 一年を回す</button>
+            <button class="chip" id="p1pm" aria-pressed="false">固有運動</button>
+            <button class="chip" id="p1trail" aria-pressed="true">軌跡</button>
+            <label class="lab" style="display:flex;align-items:center;gap:8px;flex:1;min-width:150px">
+              <span style="white-space:nowrap">DAY</span>
+              <input type="range" id="p1day" min="0" max="365" value="0" step="1" style="flex:1;accent-color:var(--mark)" aria-label="観測日">
+            </label>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+        <table class="startable" id="p1table">
+          <thead><tr><th>星</th><th>視差 ϖ ["]</th><th>距離 [pc]</th><th>距離 [ly]</th><th>黄緯 β</th><th>図上のずれ</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>何を見ているか</h3>
+        <p>地球が軌道を一周するあいだ、星は空の上で<b>楕円</b>を描く。その半軸は <b>ϖ</b> と <b>ϖ·sin β</b>。
+          黄道の極では真円に、黄道面上では直線に退化する。楕円の大きさは距離の逆数にそのまま比例する。</p>
+        <p>星をクリックすると、その星の視差楕円が引かれる。ポラリスとベテルギウスは<b>ずれが 1px を切って測れない</b> —
+          地上観測の限界 100 pc がそのまま図に出る。</p>
+
+        <h3>なぜこれが「高度」か</h3>
+        <p>他の五つが視差を<b>装飾</b>に使っているのに対し、これだけは視差を<b>計測</b>に使っている。
+          動きが数値を生み、数値が意味を持つ。パララックスが飾りに見えてしまう問題の、唯一の根本解。</p>
+
+        <h3>Web への転用</h3>
+        <p>「奥行き＝情報の階層」に読み替える。ブランドマークは遠く（動かない）、CTA は近く（大きく動く）。
+          動きの量が重要度の宣言になるので、装飾ではなく<b>情報設計</b>として正当化できる。</p>
+
+        <div class="eq">ϖ [arcsec] → d [pc] = 1 / ϖ
+Δx = −ϖ·sin(θ)
+Δy = −ϖ·cos(θ)·sin β
+半軸 = ϖ, ϖ·sin β   ／ 1 pc = 3.26 ly</div>
+        <dl class="spec">
+          <dt>駆動</dt><dd>時間（＋手動スクラブ）</dd>
+          <dt>ずれる対象</dt><dd>SVG の点</dd>
+          <dt>奥行き</dt><dd>速度差＝距離の逆数（意味を持つ）</dd>
+          <dt>基盤</dt><dd>SVG ＋ 純関数</dd>
+        </dl>
+        <p style="margin-top:14px;font-size:12px;color:var(--ink-faint)">
+          図では 1″ = 90px。実際の見かけの角度を極端に誇張してある（ESA の Gaia 解説動画も同じく約 1 万倍で描いている）。
+          視差値は Hipparcos / Gaia の実測、黄緯は概数。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PLATE II ══ -->
+<section class="plate" id="p2">
+  <div class="wrap">
+    <div class="plate-hd">
+      <span class="plate-no">PLATE II</span>
+      <h2>Depth Stack</h2>
+      <span class="plate-jp">深度層 — 大気遠近を足す</span>
+    </div>
+    <div class="plate-body">
+      <div>
+        <div class="stagebox">
+          <div class="cap">
+            <span class="lab">枠の中をスクロール</span>
+            <span class="readout" id="p2read"></span>
+          </div>
+          <div class="scroller" id="p2scroll">
+            <div class="tall"><div class="stage" id="p2stage"></div></div>
+            <div class="scrollhint">↕ scroll</div>
+          </div>
+          <div class="controls">
+            <span class="lab" style="align-self:center;margin-right:4px">手がかり</span>
+            <button class="chip" data-cue="speed" aria-pressed="true">速度差</button>
+            <button class="chip" data-cue="blur" aria-pressed="true">ぼけ</button>
+            <button class="chip" data-cue="sat" aria-pressed="true">彩度・コントラスト</button>
+            <button class="chip" data-cue="occ" aria-pressed="true">遮蔽</button>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>手がかりを一つずつ外してみる</h3>
+        <p><b>「速度差」だけ残して他を全部切る</b>と、層が動いているだけで奥に見えない。これが世の中のパララックスの大半の状態。
+          <b>「遮蔽」を切る</b>と最も派手に崩れる — 手前が奥を隠すことが、単眼の奥行き手がかりとして最も強い。</p>
+        <p>知覚科学的にも、運動視差は単独では弱い単眼手がかりで、他の手がかりと足し算して初めて効く。
+          両眼視差と併用すると 3D 構造の検出閾値が平均 48% 下がる、という測定がある。</p>
+
+        <h3>単一の深度値から全部を導く</h3>
+        <p>速度・ぼけ・彩度・コントラスト・スケールを別々に手で調整すると必ずずれる。
+          <b>z ひとつを入力とする関数</b>にして、そこからすべてを導出する。これが実装上の要点。</p>
+
+        <h3>Web への転用</h3>
+        <p>転用性は 6 案で最高。既存のヒーローに <code class="mono">--depth</code> トークンを足すだけで載る。
+          層は <b>3〜4 枚が上限</b>。それ以上は速度差を知覚できず、合成コストだけ払うことになる。</p>
+
+        <div class="eq">z ∈ [0,1]（0=手前, 1=奥）
+speed   = 1 − 0.72·z
+blur    = 3.2px · z^1.6
+sat     = 1 − 0.55·z
+scale   = 1 + 0.06·z
+（本文の背後なら speed は 0.8〜1.2 に留める）</div>
+        <dl class="spec">
+          <dt>駆動</dt><dd>スクロール位置</dd>
+          <dt>ずれる対象</dt><dd>DOM レイヤー</dd>
+          <dt>奥行き</dt><dd>速度差＋大気遠近＋遮蔽</dd>
+          <dt>基盤</dt><dd>transform ＋ CSS filter</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PLATE III ══ -->
+<section class="plate" id="p3">
+  <div class="wrap">
+    <div class="plate-hd">
+      <span class="plate-no">PLATE III</span>
+      <h2>Inversion</h2>
+      <span class="plate-jp">逆視差 — 符号を反転させる</span>
+    </div>
+    <div class="plate-body">
+      <div>
+        <div class="stagebox">
+          <div class="cap">
+            <span class="lab">正常 → 奥行き消失 → 反転</span>
+            <span class="readout" id="p3read"></span>
+          </div>
+          <div class="scroller" id="p3scroll">
+            <div class="tall"><div class="stage" id="p3stage"></div></div>
+            <div class="scrollhint">↕ scroll</div>
+          </div>
+          <div class="controls">
+            <button class="chip" id="p3hard" aria-pressed="false">境界を硬くする</button>
+            <span class="lab" style="align-self:center">奥が速く動きはじめると、風景が裏返る</span>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>意図的に規則を破る</h3>
+        <p>「近いものほど速く動く」を途中で反転させると、シーンが内側に裏返る。
+          凹んだ仮面が凸に見える<b>ホロウマスク錯視</b>の、運動視差版。脳が奥行きの符号を決めかねて、画面がひっくり返り続ける。</p>
+        <p>実装は <code class="mono">sign</code> を掛けるだけで、コストはほぼゼロ。にもかかわらず、ほとんど誰もやっていない。</p>
+
+        <h3>Web への転用</h3>
+        <p>ページ全体には使えない。<b>一箇所だけ</b>、章の切れ目や 404、意図的に居心地を悪くしたい瞬間に。
+          「境界を硬くする」を押すと不快さが跳ね上がる — 演出の強さと安全性が真正面から衝突する例として見てほしい。</p>
+
+        <div class="warn"><b>注意：</b>6 案のうち唯一、酔いを<b>意図的に</b>誘発する。前庭障害のトリガーそのもの。
+          区間を短く保ち、<code class="mono">prefers-reduced-motion</code> で確実に殺し、停止手段を必ず置くこと。</div>
+        <dl class="spec">
+          <dt>駆動</dt><dd>スクロール位置</dd>
+          <dt>ずれる対象</dt><dd>DOM レイヤー</dd>
+          <dt>奥行き</dt><dd>速度差（符号を反転）</dd>
+          <dt>基盤</dt><dd>transform</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PLATE IV ══ -->
+<section class="plate" id="p4">
+  <div class="wrap">
+    <div class="plate-hd">
+      <span class="plate-no">PLATE IV</span>
+      <h2>Off-axis Window</h2>
+      <span class="plate-jp">覗き窓 — 視錐台を組み直す</span>
+    </div>
+    <div class="plate-body">
+      <div>
+        <div class="stagebox">
+          <div class="cap">
+            <span class="lab">図の上でポインタを動かす（タッチ可）</span>
+            <span class="readout" id="p4read"></span>
+          </div>
+          <div class="duo" id="p4duo">
+            <div><span class="tag">A ／ 平行移動（よくある実装）</span>
+              <svg id="p4a" viewBox="0 0 320 300" style="display:block;width:100%;height:auto" role="img" aria-label="深度に比例した平行移動による疑似視差"></svg></div>
+            <div><span class="tag hit">B ／ 非対称視錐台（正しい投影）</span>
+              <svg id="p4b" viewBox="0 0 320 300" style="display:block;width:100%;height:auto" role="img" aria-label="視点から張り直した非対称視錐台による正しい透視投影"></svg></div>
+          </div>
+          <div class="controls">
+            <button class="chip" id="p4auto" aria-pressed="true">自動で首を振る</button>
+            <span class="lab" style="align-self:center">同じ立体・同じ視点入力。違うのは投影だけ</span>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>A と B の違い</h3>
+        <p><b>A</b> は層を深度に比例して平行移動しているだけ。奥の面は形を変えない。動いてはいるが、
+          <b>穴を覗いている感じにならない</b>。<b>B</b> は視点位置からスクリーン平面へ光線を張り直しているので、
+          奥の壁がせん断して手前の枠に隠れる — 遮蔽と透視が同時に成立する。</p>
+        <p>数学は光線とスクリーン平面の交点を取るだけで、これが Kooima の generalized perspective projection
+          （非対称視錐台）と同じもの。行列を組まなくても、この 3 行で足りる。</p>
+
+        <h3>THREE.js を使わないことの証明</h3>
+        <p>点と線だけなら投影は自前で書けて、出力は <b>1px の正確な線</b>になる。
+          WebGL の <code class="mono">lineWidth</code> がほぼ 1px 固定でアンチエイリアスも効かない問題を、そもそも踏まない。
+          製図・計器の美学とは相性が最初から良い。</p>
+
+        <h3>拡張</h3>
+        <p>視点入力をポインタから <b>webcam の頭部位置</b>（MediaPipe Face Mesh）に差し替えると、画面が本当に壁の穴になる。
+          Johnny Lee の Wii リモコン頭部追跡をブラウザでやり直した実装が既にいくつかある。投影側のコードは一切変わらない。</p>
+
+        <div class="eq">eye = (ex, ey, ez)      ez &gt; 0（画面の手前）
+P   = (px, py, pz)      pz &lt; 0（画面の奥）
+
+t  = ez / (ez − pz)
+sx = ex + (px − ex)·t
+sy = ey + (py − ey)·t</div>
+        <dl class="spec">
+          <dt>駆動</dt><dd>ポインタ位置（→ 頭部位置）</dd>
+          <dt>ずれる対象</dt><dd>3D の実ジオメトリ</dd>
+          <dt>奥行き</dt><dd>真の透視投影＋遮蔽</dd>
+          <dt>基盤</dt><dd>SVG ＋ 自前の投影</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PLATE V ══ -->
+<section class="plate" id="p5">
+  <div class="wrap">
+    <div class="plate-hd">
+      <span class="plate-no">PLATE V</span>
+      <h2>Velocity Parallax</h2>
+      <span class="plate-jp">速度視差 — 位置ではなく遅れで深度を出す</span>
+    </div>
+    <div class="plate-body">
+      <div>
+        <div class="stagebox">
+          <div class="cap">
+            <span class="lab">勢いよくスクロールして、止めてみる</span>
+            <span class="readout" id="p5read"></span>
+          </div>
+          <div class="scroller" id="p5scroll">
+            <div class="tall" style="height:1800px"><div class="stage" id="p5stage" style="background:var(--panel)"></div></div>
+            <div class="scrollhint">↕ 勢いよく</div>
+          </div>
+          <div class="controls">
+            <button class="chip" id="p5skew" aria-pressed="true">速度で歪ませる</button>
+            <button class="chip" id="p5spring" aria-pressed="true">深度ごとのばね</button>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>オフセットではなく遅れ</h3>
+        <p>深度を<b>位置のずれ</b>ではなく<b>追従の遅れ</b>で表現する。層ごとに剛性の違うばねを持たせ、
+          奥ほど柔らかくする。スクロールを止めても、奥の層はまだ沈み続けている。</p>
+        <p>スクロール速度そのものを可視化しているので、<b>止まっている状態では視差が完全に消える</b>。
+          これは大きな利点で、読んでいる最中は画面が静止する。</p>
+
+        <h3>Web への転用</h3>
+        <p>画像が一切なくてもタイポグラフィだけで成立する。写真素材を持たない<b>編集系・テキスト主体のサイト</b>で、
+          唯一使えるパララックス。GSAP なら <code class="mono">ScrollTrigger.getVelocity()</code> をクランプして
+          <code class="mono">power3</code> で 0 に戻すのが定石。</p>
+
+        <div class="eq">// 深度ごとの臨界減衰ばね
+k     = 26 − 17·z          // 奥ほど柔らかい
+a     = k·(target − y) − 2·√k·vy
+lim   = 6 + 9·z            // 上限も深度依存にする
+skew  = clamp(v · 0.0022 · (1 + 1.6·z), ±lim)</div>
+        <dl class="spec">
+          <dt>駆動</dt><dd>スクロール<b>速度</b></dd>
+          <dt>ずれる対象</dt><dd>文字（層ごと）</dd>
+          <dt>奥行き</dt><dd>追従遅れ＋歪み</dd>
+          <dt>基盤</dt><dd>rAF ＋ ばね積分</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PLATE VI ══ -->
+<section class="plate p6" id="p6">
+  <div class="wrap">
+    <div class="plate-hd">
+      <span class="plate-no">PLATE VI</span>
+      <h2>Zero-JS</h2>
+      <span class="plate-jp">スクロールリスナー 0 個</span>
+    </div>
+    <div class="plate-body">
+      <div>
+        <div class="stagebox">
+          <div class="cap"><span class="lab">どちらも JS を 1 行も使っていない</span></div>
+          <div class="duo">
+            <div>
+              <span class="tag">A ／ perspective: 2px（全ブラウザ）</span>
+              <div class="scroller p6a">
+                <div class="grp">
+                  <div class="lyr l-back">FAR</div>
+                  <div class="lyr l-mid">MID</div>
+                  <div class="lyr l-front">NEAR</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <span class="tag hit">B ／ animation-timeline: scroll()</span>
+              <div class="scroller p6b">
+                <div class="grp">
+                  <div class="lyr l-back">FAR</div>
+                  <div class="lyr l-mid">MID</div>
+                  <div class="lyr l-front">NEAR</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="controls">
+            <span class="badge" id="p6badge"><span class="dot"></span>判定中…</span>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <h3>A — 3D 空間に置いて縮尺で戻す</h3>
+        <p>スクロールコンテナに <code class="mono">perspective</code> を置き、層を <code class="mono">translateZ</code> で奥へ送る。
+          奥へ送ると小さくなるので、<b>縮尺で戻す</b>。この補正式が全て。ブラウザが視差を勝手に付けてくれる。</p>
+
+        <h3>B — スクロールをタイムラインにする</h3>
+        <p><code class="mono">animation-timeline: scroll()</code> でスクロール位置をアニメーションの再生位置に直結する。
+          <code class="mono">view()</code> なら要素の可視範囲基準、<code class="mono">animation-range</code> で区間を切り、
+          <code class="mono">timeline-scope</code> で DOM 上無関係な要素どうしを同じタイムラインに繋げる。</p>
+
+        <h3>現在地（2026-08）</h3>
+        <p>Safari 26 が 2025 年 9 月に対応、Chrome / Edge は 115+。<b>Firefox は安定版でまだフラグ裏</b>で、
+          Interop 2026 の優先項目。グローバル約 84%、Baseline 未達。
+          ポリフィルはメインスレッドに落ちるので<b>性能利点が消える</b> — 入れる意味がない。</p>
+        <p>結論は素直に <b>CSS を本命・GSAP をフォールバック</b>。両方コンポジタスレッドで走るので、
+          どちらに転んでもメインスレッドは空く。</p>
+
+        <div class="eq">/* A の補正式 */
+scale = 1 + (translateZ × −1) / perspective
+  perspective:2px, translateZ(−2px) → scale(2)
+  perspective:2px, translateZ(−4px) → scale(3)</div>
+        <dl class="spec">
+          <dt>駆動</dt><dd>スクロール位置</dd>
+          <dt>ずれる対象</dt><dd>DOM レイヤー</dd>
+          <dt>奥行き</dt><dd>速度差＋スケール補正</dd>
+          <dt>基盤</dt><dd>CSS のみ（コンポジタ）</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>落とし穴</h2>
+    <p class="lede">実装より先に決めておくこと。どれも後から足すのが難しい。</p>
+    <div class="pit">
+      <div>
+        <span class="num">3–4</span>
+        <h3>深度面の上限</h3>
+        <p>これを超えると速度差が知覚できなくなり、合成コストだけが増える。奥行きは<b>少数の層の明確な分離</b>から生まれるので、多数の層をわずかずつ動かしても出ない。</p>
+      </div>
+      <div>
+        <span class="num">0.8–1.2</span>
+        <h3>本文背後の速度比</h3>
+        <p>0.3〜1.7 まで開いてよいのは純装飾レイヤーのみ。本文の背後で速度差を広げると可読性が落ち、酔いを誘発する。</p>
+      </div>
+      <div>
+        <span class="num">2.3.3</span>
+        <h3>WCAG</h3>
+        <p>2.3.3（AAA）はインタラクション由来のアニメーションを無効化できることを要求。2.2.2（A）は 5 秒を超える動きに停止手段を要求。パララックスは前庭障害のトリガーとして名指しで挙がる典型。</p>
+      </div>
+      <div>
+        <span class="num">2</span>
+        <h3>動かしてよいプロパティ</h3>
+        <p><code class="mono">transform</code> と <code class="mono">opacity</code> だけ。<code class="mono">top</code> / <code class="mono">margin</code> / <code class="mono">background-position</code> を動かした時点で毎フレーム再レイアウト・再ペイントが走る。</p>
+      </div>
+      <div>
+        <span class="num">✕</span>
+        <h3>background-attachment: fixed</h3>
+        <p>最も安く書けて最も重い。スクロールのたびに再ペイントされる。CSS 3D か scroll-timeline に置き換える。</p>
+      </div>
+      <div>
+        <span class="num">1</span>
+        <h3>深度は単一の入力に</h3>
+        <p>速度・ぼけ・彩度・スケールを個別に手調整すると必ずずれる。<b>z ひとつから全部を導出</b>する関数にすれば、破綻しようがない。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <h2>出典</h2>
+    <div class="srcs">
+      <a href="https://css-tricks.com/bringing-back-parallax-with-scroll-driven-css-animations/" target="_blank" rel="noopener">CSS-Tricks — Bringing Back Parallax With Scroll-Driven CSS Animations</a>
+      <a href="https://webkit.org/blog/17101/a-guide-to-scroll-driven-animations-with-just-css/" target="_blank" rel="noopener">WebKit — A guide to Scroll-driven Animations with just CSS</a>
+      <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/animation-timeline" target="_blank" rel="noopener">MDN — animation-timeline</a>
+      <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/timeline-scope" target="_blank" rel="noopener">MDN — timeline-scope</a>
+      <a href="https://keithclark.co.uk/articles/pure-css-parallax-websites/" target="_blank" rel="noopener">Keith Clark — Pure CSS Parallax Websites</a>
+      <a href="https://tympanus.net/codrops/2019/02/20/how-to-create-a-fake-3d-image-effect-with-webgl/" target="_blank" rel="noopener">Codrops — Fake 3D Image Effect with WebGL</a>
+      <a href="https://tympanus.net/codrops/2026/07/30/building-an-infinite-gsap-scroll-gallery-with-parallax-and-flip-transitions/" target="_blank" rel="noopener">Codrops — Infinite GSAP Scroll Gallery with Parallax and Flip</a>
+      <a href="https://codepen.io/GreenSock/pen/eYpGLYL" target="_blank" rel="noopener">GreenSock — Skew on scroll velocity</a>
+      <a href="https://learnopengl.com/Advanced-Lighting/Parallax-Mapping" target="_blank" rel="noopener">LearnOpenGL — Parallax Mapping</a>
+      <a href="http://graphics.cs.brown.edu/games/SteepParallax/" target="_blank" rel="noopener">Brown — Steep Parallax Mapping</a>
+      <a href="https://www.semanticscholar.org/paper/Generalized-Perspective-Projection-Kooima/14d1b312aba825bcce17edd67e3fdc139f1a76a2" target="_blank" rel="noopener">Kooima — Generalized Perspective Projection</a>
+      <a href="https://sci.esa.int/web/gaia/-/60237-parallax-and-proper-motion" target="_blank" rel="noopener">ESA Gaia — Parallax and proper motion</a>
+      <a href="http://ned.ipac.caltech.edu/level5/March19/Mignard/Mignard3.html" target="_blank" rel="noopener">Mignard — Astronomical distance scales in the Gaia era</a>
+      <a href="https://royalsocietypublishing.org/doi/10.1098/rstb.2015.0256" target="_blank" rel="noopener">Royal Society — Neural basis of depth perception from motion parallax</a>
+      <a href="https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html" target="_blank" rel="noopener">W3C — Understanding SC 2.3.3 Animation from Interactions</a>
+      <a href="https://alistapart.com/article/accessibility-for-vestibular/" target="_blank" rel="noopener">A List Apart — Accessibility for Vestibular Disorders</a>
+      <a href="https://www.smashingmagazine.com/2021/09/deep-dive-wonderful-world-svg-displacement-filtering/" target="_blank" rel="noopener">Smashing — SVG Displacement Filtering</a>
+      <a href="https://web-platform-dx.github.io/web-features-explorer/features/scroll-driven-animations/" target="_blank" rel="noopener">web-features — Scroll-driven animations</a>
+    </div>
+  </div>
+</section>
+
+<footer><div class="wrap">視差見本帳 — 六葉。外部ライブラリ不使用、全図版ライブ。</div></footer>
+
+<script>
+(() => {
+  "use strict";
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (t, a) => { const n = document.createElementNS(NS, t); for (const k in a) n.setAttribute(k, a[k]); return n; };
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const $ = s => document.querySelector(s);
+
+  const rmq = matchMedia("(prefers-reduced-motion: reduce)");
+  let motion = !rmq.matches;
+
+  // 表示中の図版だけ回す。6 つ同時に rAF を回さない。
+  const loops = new Set();
+  function tick(now) {
+    for (const f of loops) f(now);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  function whenVisible(node, onEnter, onLeave) {
+    new IntersectionObserver(es => {
+      for (const e of es) e.isIntersecting ? onEnter() : onLeave();
+    }, { rootMargin: "120px" }).observe(node);
+  }
+
+  const motionSw = $("#motionSw");
+  function setMotion(on) {
+    motion = on;
+    motionSw.setAttribute("aria-pressed", String(on));
+    motionSw.lastChild.nodeValue = on ? "Motion" : "Frozen";
+  }
+  motionSw.addEventListener("click", () => setMotion(!motion));
+  setMotion(motion);
+
+  /* ── 表題：題字そのものを二視点でずらす ─────────── */
+  (() => {
+    const mast = $("#masthead"), ghost = mast.querySelector(".ghost");
+    let tx = 0, ty = 0, cx = 0, cy = 0;
+    addEventListener("pointermove", e => {
+      tx = (e.clientX / innerWidth - .5) * 26;
+      ty = (e.clientY / innerHeight - .5) * 10;
+    }, { passive: true });
+    whenVisible(mast, () => loops.add(step), () => loops.delete(step));
+    function step() {
+      const k = motion ? .09 : 1;
+      cx += ((motion ? tx : 6) - cx) * k;
+      cy += ((motion ? ty : 3) - cy) * k;
+      ghost.style.transform = `translate(${cx.toFixed(2)}px,${cy.toFixed(2)}px)`;
+    }
+  })();
+
+  /* ══ PLATE I — 恒星視差 ══════════════════════ */
+  (() => {
+    const svg = $("#p1svg"), read = $("#p1read"), tbody = $("#p1table tbody");
+    const K = 90;                 // 図上 px / arcsec
+    const STARS = [
+      { n: "Proxima Centauri", p: 0.7687, b: -44.6, x: 108, y: 262, m: 2.0 },
+      { n: "Sirius",           p: 0.3792, b: -39.6, x: 296, y: 196, m: 3.4 },
+      { n: "Altair",           p: 0.1948, b:  29.3, x: 452, y: 118, m: 2.6 },
+      { n: "Vega",             p: 0.1303, b:  61.7, x: 196, y:  84, m: 2.9 },
+      { n: "Polaris",          p: 0.0076, b:  66.1, x: 516, y:  58, m: 2.2 },
+      { n: "Betelgeuse",       p: 0.0055, b: -16.0, x: 384, y: 278, m: 3.1 },
+    ];
+    let sel = 1, theta = 0, playing = true, pm = false, trail = true;
+
+    // 遠景（視差 0）の星。図の基準。
+    const bg = el("g", { fill: "currentColor", opacity: ".34", color: "var(--ink-faint)" });
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    for (let i = 0; i < 150; i++) bg.append(el("circle", { cx: (rnd() * 620).toFixed(1), cy: (rnd() * 350).toFixed(1), r: (rnd() * .9 + .25).toFixed(2) }));
+    svg.append(bg);
+
+    // 黄道（基線の向きの基準線）
+    svg.append(el("path", {
+      d: "M0 232 C 150 208, 300 250, 620 196", fill: "none",
+      stroke: "var(--rule-2)", "stroke-width": ".8", "stroke-dasharray": "5 5"
+    }));
+    const eclLabel = el("text", { x: 10, y: 224, fill: "var(--ink-faint)", "font-size": "8.5", "letter-spacing": "1.6", "font-family": "IBM Plex Mono, monospace" });
+    eclLabel.textContent = "ECLIPTIC";
+    svg.append(eclLabel);
+
+    const ellipse = el("ellipse", { fill: "none", stroke: "var(--mark)", "stroke-width": ".9", "stroke-dasharray": "3 3", opacity: ".85" });
+    const path = el("path", { fill: "none", stroke: "var(--mark)", "stroke-width": "1", opacity: ".5" });
+    svg.append(ellipse, path);
+
+    const nodes = STARS.map((s, i) => {
+      const g = el("g", { style: "cursor:pointer" });
+      const hit = el("circle", { cx: s.x, cy: s.y, r: 13, fill: "transparent" });
+      const dot = el("circle", { cx: 0, cy: 0, r: s.m, fill: "var(--ink)" });
+      const halo = el("circle", { cx: 0, cy: 0, r: s.m + 4, fill: "none", stroke: "var(--mark)", "stroke-width": "1", opacity: "0" });
+      const wrap = el("g", {});
+      wrap.append(halo, dot);
+      const label = el("text", {
+        x: s.x + 10, y: s.y - 8, fill: "var(--ink-soft)", "font-size": "9",
+        "letter-spacing": ".6", "font-family": "IBM Plex Mono, monospace"
+      });
+      label.textContent = s.n.toUpperCase();
+      g.append(hit, wrap, label);
+      g.addEventListener("click", () => select(i));
+      g.addEventListener("pointerenter", () => { halo.setAttribute("opacity", ".6"); });
+      g.addEventListener("pointerleave", () => { halo.setAttribute("opacity", i === sel ? "1" : "0"); });
+      svg.append(g);
+      return { s, wrap, dot, halo, label };
+    });
+
+    STARS.forEach((s, i) => {
+      const pc = 1 / s.p, ly = pc * 3.26156, px = s.p * K;
+      const tr = document.createElement("tr");
+      const measurable = px >= 1;
+      tr.innerHTML =
+        `<td>${s.n}</td><td>${s.p.toFixed(4)}</td><td>${pc < 10 ? pc.toFixed(2) : Math.round(pc)}</td>` +
+        `<td>${ly < 10 ? ly.toFixed(2) : Math.round(ly)}</td><td>${s.b > 0 ? "+" : ""}${s.b.toFixed(1)}°</td>` +
+        `<td class="${measurable ? "" : "out"}">${measurable ? px.toFixed(1) + " px" : "< 1 px"}</td>`;
+      tr.addEventListener("click", () => select(i));
+      tbody.append(tr);
+    });
+
+    function select(i) {
+      sel = i;
+      nodes.forEach((n, j) => n.halo.setAttribute("opacity", j === i ? "1" : "0"));
+      [...tbody.children].forEach((tr, j) => tr.setAttribute("aria-selected", String(j === i)));
+      const s = STARS[i], rx = s.p * K, ry = Math.abs(s.p * K * Math.sin(s.b * Math.PI / 180));
+      ellipse.setAttribute("cx", s.x); ellipse.setAttribute("cy", s.y);
+      ellipse.setAttribute("rx", Math.max(rx, .4)); ellipse.setAttribute("ry", Math.max(ry, .4));
+      ellipse.setAttribute("opacity", rx < 1 ? ".3" : ".85");
+    }
+    select(1);
+
+    const day = $("#p1day"), play = $("#p1play"), pmBtn = $("#p1pm"), trailBtn = $("#p1trail");
+    play.addEventListener("click", () => { playing = !playing; play.setAttribute("aria-pressed", String(playing)); play.textContent = playing ? "▶ 一年を回す" : "⏸ 停止中"; });
+    pmBtn.addEventListener("click", () => { pm = !pm; pmBtn.setAttribute("aria-pressed", String(pm)); });
+    trailBtn.addEventListener("click", () => { trail = !trail; trailBtn.setAttribute("aria-pressed", String(trail)); path.setAttribute("opacity", trail ? ".5" : "0"); });
+    day.addEventListener("input", () => { playing = false; play.setAttribute("aria-pressed", "false"); play.textContent = "▶ 一年を回す"; theta = day.value / 365 * Math.PI * 2; });
+
+    const MONTH = ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"];
+    let last = 0;
+    function frame(now) {
+      const dt = last ? Math.min(now - last, 50) : 16; last = now;
+      if (playing && motion) {
+        theta += dt / 1000 * (Math.PI * 2 / 14);   // 一年 = 14 秒
+        day.value = Math.round((theta % (Math.PI * 2)) / (Math.PI * 2) * 365);
+      }
+      const years = theta / (Math.PI * 2);
+      for (const n of nodes) {
+        const s = n.s;
+        const drift = pm ? years * s.p * K * .55 : 0;   // 固有運動：軌跡が開いた螺旋になる
+        const dx = -s.p * K * Math.sin(theta) + drift;
+        const dy = -s.p * K * Math.cos(theta) * Math.sin(s.b * Math.PI / 180);
+        n.wrap.setAttribute("transform", `translate(${(s.x + dx).toFixed(2)},${(s.y + dy).toFixed(2)})`);
+      }
+      // 選択星の軌跡
+      const s = STARS[sel];
+      if (trail) {
+        const rx = s.p * K, ry = s.p * K * Math.sin(s.b * Math.PI / 180);
+        let d = "", steps = 80, span = pm ? Math.min(theta, Math.PI * 6) : Math.PI * 2;
+        for (let i = 0; i <= steps; i++) {
+          const t = theta - span * (1 - i / steps);
+          const yr = t / (Math.PI * 2);
+          const dr = pm ? yr * s.p * K * .55 : 0;
+          d += (i ? "L" : "M") + (s.x - rx * Math.sin(t) + dr).toFixed(1) + " " + (s.y - ry * Math.cos(t)).toFixed(1);
+        }
+        path.setAttribute("d", d);
+      }
+      if (pm) { ellipse.setAttribute("opacity", "0"); } else { ellipse.setAttribute("opacity", s.p * K < 1 ? ".3" : ".85"); }
+
+      const pc = 1 / s.p;
+      read.innerHTML =
+        `<span>${MONTH[Math.floor(((theta % (Math.PI * 2)) / (Math.PI * 2)) * 12) % 12]}</span>` +
+        `<span>ϖ = <b>${s.p.toFixed(4)}″</b></span>` +
+        `<span>d = 1/ϖ = <b>${pc < 10 ? pc.toFixed(2) : Math.round(pc)} pc</b></span>` +
+        `<span><b>${(pc * 3.26156) < 10 ? (pc * 3.26156).toFixed(2) : Math.round(pc * 3.26156)} ly</b></span>`;
+    }
+    whenVisible(svg, () => { last = 0; loops.add(frame); }, () => loops.delete(frame));
+    frame(0);
+  })();
+
+  /* ══ 稜線シーン（PLATE II / III 共用） ═══════════ */
+  function ridgeScene(stage, opts) {
+    const LAYERS = 4;
+    const made = [];
+    for (let i = 0; i < LAYERS; i++) {
+      const z = i / (LAYERS - 1);            // 0 = 手前, 1 = 奥
+      // 稜線の見える高さ。手前ほど低く大きく、奥ほど高く薄い。
+      const H = 150 + z * 95;
+      // viewBox を下へ 400 延長し、要素もその比率で伸ばして下端を隠す。
+      // これをやらないと、層を上へ動かした瞬間に塗りが尽きて隙間が出る。
+      const svg = el("svg", {
+        class: "ridge", viewBox: "0 0 600 700", preserveAspectRatio: "none",
+        style: `height:${(H * 700 / 300).toFixed(1)}px;bottom:${(-H * 400 / 300).toFixed(1)}px;z-index:${LAYERS - i}`
+      });
+      // 稜線は正弦の重ね合わせで生成する（長いパスデータを手書きしない）
+      const ph = i * 2.7, amp = 46 - z * 16, base = 96 + z * 42;
+      let d = "M0 700 L0 " + (300 - base);
+      for (let x = 0; x <= 600; x += 12) {
+        const y = 300 - base
+          - Math.sin(x / 118 + ph) * amp
+          - Math.sin(x / 41 + ph * 2.1) * amp * .32
+          - Math.sin(x / 23 + ph * .7) * amp * .12;
+        d += `L${x} ${y.toFixed(1)}`;
+      }
+      d += "L600 700 Z";
+      svg.append(el("path", { d, fill: "currentColor" }));
+      // 奥ほど地の色に寄せる = 大気遠近の主成分
+      svg.style.color = `color-mix(in srgb, var(--ink) ${(88 - z * 66).toFixed(0)}%, var(--sky-far))`;
+      stage.append(svg);
+      made.push({ svg, z });
+    }
+    // 前景の計器枠。遮蔽の最前面。
+    const ret = el("svg", { class: "reticle", viewBox: "0 0 600 300", preserveAspectRatio: "none", style: "z-index:20" });
+    ret.append(
+      el("rect", { x: 16, y: 16, width: 568, height: 268, fill: "none", stroke: "var(--rule-2)", "stroke-width": "1" }),
+      el("line", { x1: 300, y1: 16, x2: 300, y2: 40, stroke: "var(--mark)", "stroke-width": "1" }),
+      el("line", { x1: 300, y1: 260, x2: 300, y2: 284, stroke: "var(--mark)", "stroke-width": "1" }),
+      el("line", { x1: 16, y1: 150, x2: 40, y2: 150, stroke: "var(--mark)", "stroke-width": "1" }),
+      el("line", { x1: 560, y1: 150, x2: 584, y2: 150, stroke: "var(--mark)", "stroke-width": "1" })
+    );
+    stage.append(ret);
+
+    return function render(prog, cue) {
+      for (const m of made) {
+        const z = m.z;
+        // gain は深度→速度の傾き。+1 で正常、0 で奥行き消失、−1 で奥が手前より速い。
+        // シーン全体の進行方向は反転させない（それは逆走であって逆視差ではない）。
+        const gain = opts.invert ? opts.gainAt(prog) : 1;
+        const speed = cue.speed ? (1 - .72 * z * gain) : 1;
+        const blur = cue.blur ? (Math.pow(z, 1.6) * 3.2) : 0;
+        const sat = cue.sat ? (1 - .55 * z) : 1;
+        const con = cue.sat ? (1 - .28 * z) : 1;
+        const sc = 1 + .06 * z;
+        m.svg.style.transform = `translate3d(0,${(-prog * opts.range * speed).toFixed(2)}px,0) scale(${sc})`;
+        m.svg.style.filter = `blur(${blur.toFixed(2)}px) saturate(${sat.toFixed(2)}) contrast(${con.toFixed(2)})`;
+        m.svg.style.opacity = cue.occ ? "1" : (z === 0 ? ".55" : ".45");
+        m.svg.style.mixBlendMode = cue.occ ? "normal" : "multiply";
+      }
+    };
+  }
+
+  function scrollProgress(scroller) {
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    return max > 0 ? clamp(scroller.scrollTop / max, 0, 1) : 0;
+  }
+
+  /* ══ PLATE II ══════════════════════════════ */
+  (() => {
+    const sc = $("#p2scroll"), stage = $("#p2stage"), read = $("#p2read");
+    const cue = { speed: true, blur: true, sat: true, occ: true };
+    const render = ridgeScene(stage, { invert: false, range: 110 });
+    document.querySelectorAll("[data-cue]").forEach(b => b.addEventListener("click", () => {
+      const k = b.dataset.cue; cue[k] = !cue[k];
+      b.setAttribute("aria-pressed", String(cue[k]));
+      draw();
+    }));
+    function draw() {
+      const p = scrollProgress(sc);
+      render(p, cue);
+      const on = Object.keys(cue).filter(k => cue[k]).length;
+      read.innerHTML = `<span>progress <b>${(p * 100).toFixed(0)}%</b></span><span>手がかり <b>${on}/4</b></span><span>層 <b>4</b></span>`;
+    }
+    sc.addEventListener("scroll", draw, { passive: true });
+    draw();
+  })();
+
+  /* ══ PLATE III ══════════════════════════════ */
+  (() => {
+    const sc = $("#p3scroll"), stage = $("#p3stage"), read = $("#p3read");
+    let hard = false;
+    const cue = { speed: true, blur: true, sat: true, occ: true };
+    const gainAt = p => hard ? (p < .5 ? 1 : -1) : Math.cos(clamp((p - .28) / .44, 0, 1) * Math.PI);
+    const render = ridgeScene(stage, { invert: true, range: 90, gainAt });
+    $("#p3hard").addEventListener("click", e => {
+      hard = !hard; e.currentTarget.setAttribute("aria-pressed", String(hard)); draw();
+    });
+    function draw() {
+      const p = scrollProgress(sc);
+      render(p, cue);
+      const g = gainAt(p);
+      const state = g > .55 ? "正常" : g < -.55 ? "反転" : "奥行き消失";
+      read.innerHTML = `<span>progress <b>${(p * 100).toFixed(0)}%</b></span>` +
+        `<span>depth gain <b>${g >= 0 ? "+" : ""}${g.toFixed(2)}</b></span><span><b>${state}</b></span>`;
+    }
+    sc.addEventListener("scroll", draw, { passive: true });
+    draw();
+  })();
+
+  /* ══ PLATE IV — 非対称視錐台 ═══════════════════ */
+  (() => {
+    const duo = $("#p4duo"), read = $("#p4read");
+    const A = $("#p4a"), B = $("#p4b");
+    const HALF = 96, DEPTHS = [0, -70, -140, -210, -280, -350];
+    const CX = 160, CY = 150, EZ = 430;
+    let ex = 0, ey = 0, tex = 0, tey = 0, auto = true, t0 = 0;
+
+    // 視点からスクリーン平面へ光線を張り直す = 非対称視錐台
+    const projB = (x, y, z) => {
+      const k = EZ / (EZ - z);
+      return [CX + ex + (x - ex) * k, CY + ey + (y - ey) * k];
+    };
+    // よくある実装：深度に比例した平行移動だけ
+    const projA = (x, y, z) => [CX + x + ex * (-z / 350) * .9, CY + y + ey * (-z / 350) * .9];
+
+    function build(svg, proj) {
+      const g = el("g", {});
+      svg.append(g);
+      const rects = DEPTHS.map((z, i) => {
+        const p = el("polygon", {
+          fill: "none", "stroke-width": i === 0 ? "1.4" : "1",
+          stroke: i === 0 ? "var(--mark)" : "var(--rule-2)",
+          opacity: i === 0 ? "1" : (1 - i * .11).toFixed(2)
+        });
+        g.append(p); return { p, z };
+      });
+      const edges = [0, 1, 2, 3].map(() => { const l = el("line", { stroke: "var(--rule-2)", "stroke-width": ".7", opacity: ".5" }); g.append(l); return l; });
+      // 奥に浮かぶ十字（ノーモン）
+      const gn = el("g", {});
+      const gl = [el("line", {}), el("line", {})].map(l => { l.setAttribute("stroke", "var(--mark)"); l.setAttribute("stroke-width", "1.2"); gn.append(l); return l; });
+      g.append(gn);
+      return { rects, edges, gl, proj };
+    }
+    const sA = build(A, projA), sB = build(B, projB);
+
+    function drawOne(s) {
+      const corners = [[-HALF, -HALF], [HALF, -HALF], [HALF, HALF], [-HALF, HALF]];
+      const pts = s.rects.map(r => corners.map(c => s.proj(c[0], c[1], r.z)));
+      s.rects.forEach((r, i) => r.p.setAttribute("points", pts[i].map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")));
+      s.edges.forEach((l, i) => {
+        const a = pts[0][i], b = pts[pts.length - 1][i];
+        l.setAttribute("x1", a[0].toFixed(1)); l.setAttribute("y1", a[1].toFixed(1));
+        l.setAttribute("x2", b[0].toFixed(1)); l.setAttribute("y2", b[1].toFixed(1));
+      });
+      const z = -175, r = 34;
+      const h = [s.proj(-r, 0, z), s.proj(r, 0, z)], v = [s.proj(0, -r, z), s.proj(0, r, z)];
+      s.gl[0].setAttribute("x1", h[0][0].toFixed(1)); s.gl[0].setAttribute("y1", h[0][1].toFixed(1));
+      s.gl[0].setAttribute("x2", h[1][0].toFixed(1)); s.gl[0].setAttribute("y2", h[1][1].toFixed(1));
+      s.gl[1].setAttribute("x1", v[0][0].toFixed(1)); s.gl[1].setAttribute("y1", v[0][1].toFixed(1));
+      s.gl[1].setAttribute("x2", v[1][0].toFixed(1)); s.gl[1].setAttribute("y2", v[1][1].toFixed(1));
+    }
+
+    duo.addEventListener("pointermove", e => {
+      const r = duo.getBoundingClientRect();
+      auto = false; $("#p4auto").setAttribute("aria-pressed", "false");
+      tex = ((e.clientX - r.left) / r.width - .5) * 190;
+      tey = ((e.clientY - r.top) / r.height - .5) * 120;
+    }, { passive: true });
+    duo.addEventListener("pointerleave", () => { tex = 0; tey = 0; });
+    $("#p4auto").addEventListener("click", e => {
+      auto = !auto; e.currentTarget.setAttribute("aria-pressed", String(auto));
+    });
+
+    function frame(now) {
+      if (!t0) t0 = now;
+      if (auto && motion) {
+        const t = (now - t0) / 1000;
+        tex = Math.sin(t * .72) * 82; tey = Math.sin(t * .47) * 42;
+      }
+      ex += (tex - ex) * .1; ey += (tey - ey) * .1;
+      drawOne(sA); drawOne(sB);
+      read.innerHTML = `<span>eye = (<b>${ex.toFixed(0)}</b>, <b>${ey.toFixed(0)}</b>, ${EZ})</span><span>depth 0 … −350</span>`;
+    }
+    whenVisible(duo, () => { t0 = 0; loops.add(frame); }, () => loops.delete(frame));
+    frame(0);
+  })();
+
+  /* ══ PLATE V — 速度視差 ═══════════════════════ */
+  (() => {
+    const sc = $("#p5scroll"), stage = $("#p5stage"), read = $("#p5read");
+    const WORDS = [
+      { t: "SURFACE", z: 0.00, size: 52, top: 44 },
+      { t: "MIDDLE",  z: 0.34, size: 42, top: 128 },
+      { t: "DEEP",    z: 0.67, size: 34, top: 204 },
+      { t: "FLOOR",   z: 1.00, size: 26, top: 272 },
+    ];
+    let skewOn = true, springOn = true;
+    const layers = WORDS.map(w => {
+      const d = document.createElement("div");
+      d.className = "vword";
+      d.textContent = w.t;
+      d.style.top = w.top + "px";
+      d.style.fontSize = w.size + "px";
+      d.style.color = `color-mix(in srgb, var(--ink) ${(100 - w.z * 55).toFixed(0)}%, var(--sky-far))`;
+      if (w.z === 0) d.style.color = "var(--mark)";
+      stage.append(d);
+      return { ...w, node: d, y: 0, vy: 0, skew: 0 };
+    });
+    // 深度の目盛り
+    const rule = document.createElement("div");
+    rule.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:9";
+    rule.innerHTML = WORDS.map(w =>
+      `<div style="position:absolute;left:0;right:0;top:${w.top + w.size * .62}px;height:1px;background:var(--rule)"></div>` +
+      `<div style="position:absolute;left:10px;top:${w.top + w.size * .62 + 3}px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;color:var(--ink-faint)">z ${w.z.toFixed(2)}</div>`
+    ).join("");
+    stage.append(rule);
+
+    let lastTop = 0, lastT = 0, vel = 0;
+    sc.addEventListener("scroll", () => {
+      const now = performance.now();
+      const dt = Math.max(8, now - lastT);
+      vel = (sc.scrollTop - lastTop) / dt * 1000;
+      lastTop = sc.scrollTop; lastT = now;
+    }, { passive: true });
+
+    $("#p5skew").addEventListener("click", e => { skewOn = !skewOn; e.currentTarget.setAttribute("aria-pressed", String(skewOn)); });
+    $("#p5spring").addEventListener("click", e => { springOn = !springOn; e.currentTarget.setAttribute("aria-pressed", String(springOn)); });
+
+    let prev = 0;
+    function frame(now) {
+      const dt = prev ? Math.min((now - prev) / 1000, .05) : .016; prev = now;
+      if (performance.now() - lastT > 90) vel *= .86;
+      const p = scrollProgress(sc);
+      let maxLag = 0;
+      for (const L of layers) {
+        const target = -p * 210 * (1 - .55 * L.z);
+        if (springOn) {
+          const k = 26 - 17 * L.z;              // 奥ほど柔らかい
+          const a = k * (target - L.y) - 2 * Math.sqrt(k) * L.vy;
+          L.vy += a * dt; L.y += L.vy * dt;
+        } else { L.y = target; L.vy = 0; }
+        // 上限も深度依存にする。固定クランプだと速いスクロールで全層が張り付き、
+        // 見せたいはずの深度差がちょうど消える。
+        const lim = 6 + 9 * L.z;
+        const ts = skewOn ? clamp(vel * .0022 * (1 + 1.6 * L.z), -lim, lim) : 0;
+        L.skew += (ts - L.skew) * .16;
+        L.node.style.transform = `translate3d(0,${L.y.toFixed(2)}px,0) skewY(${L.skew.toFixed(2)}deg)`;
+        maxLag = Math.max(maxLag, Math.abs(target - L.y));
+      }
+      read.innerHTML = `<span>velocity <b>${vel.toFixed(0)} px/s</b></span><span>最大遅れ <b>${maxLag.toFixed(1)} px</b></span>`;
+    }
+    whenVisible(sc, () => { prev = 0; loops.add(frame); }, () => loops.delete(frame));
+    frame(0);
+  })();
+
+  /* ══ PLATE VI — 対応判定バッジのみ ═══════════════ */
+  (() => {
+    const b = $("#p6badge");
+    const ok = typeof CSS !== "undefined" && CSS.supports && CSS.supports("animation-timeline: scroll()");
+    b.classList.toggle("ok", ok);
+    b.lastChild.nodeValue = ok
+      ? "このブラウザは animation-timeline に対応 — B が動いている"
+      : "このブラウザは未対応 — B は静止する（A は動く）";
+  })();
+
+  rmq.addEventListener("change", () => setMotion(!rmq.matches));
+})();
+</script>
