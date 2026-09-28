@@ -78,7 +78,10 @@ export default function KineticTitle({ text, className }: Props) {
 
     // --- 入り: 本文は無条件に即差し替える ---
     host.textContent = text;
-    const split = new SplitText(host, { type: 'chars' });
+    // chars だけで割ると文字が単語にまとまらず、狭い画面で単語の途中で改行される
+    // （390px で "Uncomm / on." になった）。words も割ると単語が inline-block の箱になり、
+    // 折り返しは単語の境目でしか起きない。動かすのは chars のままなので演出は変わらない。
+    const split = new SplitText(host, { type: 'words,chars' });
     splitRef.current = split;
 
     const chars = split.chars as HTMLElement[];
