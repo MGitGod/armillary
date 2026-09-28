@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"lib/*.test.ts\""
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"lib/*.test.ts\"",
+    "readme:capture": "node scripts/capture-readme.mjs"
   },
   "dependencies": {
     "clsx": "latest",
@@ -23,6 +24,9 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "gifenc": "^1.0.3",
+    "playwright-core": "^1.63.0",
+    "pngjs": "^7.0.0",
     "postcss": "latest",
     "tailwindcss": "latest",
     "typescript": "latest"

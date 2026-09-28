@@ -165,6 +165,13 @@ PAGES_BASE_PATH=/armillary npm run build
 node scripts/serve-pages.mjs   # http://localhost:4000/armillary/
 ```
 
+README の GIF とヒーロー画像を撮り直すとき（上の配信を立ち上げたまま、別のターミナルで。Google Chrome が必要）:
+
+```bash
+npm run readme:capture                    # 全部
+npm run readme:capture -- curtain,orrery  # 一部だけ
+```
+
 ## ディレクトリ構成
 
 ```
