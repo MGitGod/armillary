@@ -56,6 +56,36 @@ export const site = {
   ],
 } as const;
 
+/**
+ * Orrery（ラボの入口）に浮かべる天体。ラボの棚をテーマごとに 4 つに束ねたもの。
+ * 内側の軌道から順に、ページの並び順と揃えてある。
+ * title は選んだときに大見出しとして組まれるので短い英語、summary は左下の欄に出る。
+ */
+export type LabGroup = { id: string; title: string; summary: string };
+
+export const labGroups: LabGroup[] = [
+  {
+    id: 'curves',
+    title: 'Curves',
+    summary: '#03–05 Rhodonea / Lissajous / Convergence。式の係数をスクロールで回し、図形が閉じる・止まる瞬間を見る。',
+  },
+  {
+    id: 'type-and-veil',
+    title: 'Type & Veil',
+    summary: '#02, #06–08 Type Gravity / Shutter / Curtain / Masked Lines。文字と面の出し方。落とす・開く・拭う・立ち上げる。',
+  },
+  {
+    id: 'particles',
+    title: 'Particles',
+    summary: '#09–10 Paper Sphere / Radial Burst。たくさんの粒に規則を与える。ばね、黄金角、衝突予測。',
+  },
+  {
+    id: 'parallax',
+    title: 'Parallax',
+    summary: '#11–15 奥行きの手がかりを一つずつ分解し、最後に測距儀として組み上げる。',
+  },
+];
+
 export const projects: Project[] = [
   {
     slug: 'project-one',

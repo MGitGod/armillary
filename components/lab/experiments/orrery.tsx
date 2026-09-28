@@ -2,30 +2,28 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import Orrery from '../../Orrery';
 import KineticTitle from '../../KineticTitle';
-import { Fill } from '../../Fill';
-import { site, projects } from '../../../lib/content';
+import { site, labGroups } from '../../../lib/content';
 import { layoutBodies } from '../../../lib/orbital';
 import type { Experiment } from '../../../lib/lab';
 import { Corner } from '../Corner';
 
-const strip = (s: string) => s.replace(/[[\]]/g, '');
-
 /**
  * 対話型なので scrub しない（pin: false）。
  * スクロールで送るのではなく、手で回して選ぶ実験。
+ * 天体はラボの棚をテーマで束ねたもの。選ぶとそのテーマの中身が読める。
  */
 function OrreryStage() {
   const bodies = useMemo(
-    () => layoutBodies(projects.map((p) => ({ id: p.slug, label: p.title }))),
+    () => layoutBodies(labGroups.map((g) => ({ id: g.id, label: g.title }))),
     [],
   );
 
   const [selected, setSelected] = useState<string | null>(null);
-  const project = projects.find((p) => p.slug === selected) ?? null;
+  const group = labGroups.find((g) => g.id === selected) ?? null;
   const body = bodies.find((b) => b.id === selected) ?? null;
 
-  const title = project
-    ? strip(project.title)
+  const title = group
+    ? group.title
     : `${site.headline.lead} ${site.headline.accent}`;
 
   // 毎フレーム state を更新すると再レンダリングが 60fps で走るので、
@@ -59,15 +57,13 @@ function OrreryStage() {
       </Corner>
 
       <Corner className="bottom-5 left-5" label="SELECTED">
-        {body && project ? (
+        {body && group ? (
           <>
-            {strip(project.title)}
+            {group.title}
             <br />
             R {body.radius.toFixed(0)} · P {(6.2832 / body.omega).toFixed(1)}s
             <br />
-            <span className="text-white/40">
-              <Fill>{project.summary}</Fill>
-            </span>
+            <span className="text-white/40">{group.summary}</span>
           </>
         ) : (
           <span className="text-white/30">NO BODY SELECTED</span>
