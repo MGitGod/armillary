@@ -47,9 +47,11 @@ export const site = {
     '[ここに自己紹介を 2〜3 段落。何をやってきた人で、いま何に興味があるのか。]\n\n[得意領域と、仕事の進め方。クライアントが「この人に頼むとどうなるか」を想像できる粒度で。]',
   email: '[you@example.com]',
   location: '[Tokyo, Japan]',
+  /** ラボの終端に出すリンク。見た人がそのままコードを読みに行ける先。 */
+  source: 'https://github.com/MGitGod/armillary',
   /** 空配列にすればフッターから消える。 */
   socials: [
-    { label: 'GitHub', href: '[https://github.com/yourname]' },
+    { label: 'GitHub', href: 'https://github.com/MGitGod' },
     { label: 'X', href: '[https://x.com/yourname]' },
   ],
 } as const;

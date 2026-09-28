@@ -3,8 +3,7 @@ import React, { useEffect } from 'react';
 import LabSection from '../components/lab/LabSection';
 import { experiments } from '../components/lab/registry';
 import IndexDial from '../components/lab/IndexDial';
-import { Fill } from '../components/Fill';
-import { site, hasPlaceholder } from '../lib/content';
+import { site } from '../lib/content';
 import { ScrollTrigger } from '../lib/gsap-config';
 import Ornament from '../components/Ornament';
 
@@ -51,20 +50,16 @@ export default function LabPage() {
           </h2>
 
           <div className="mt-8">
-            {hasPlaceholder(site.email) ? (
-              <p className="text-xl">
-                <Fill>{site.email}</Fill>
-              </p>
-            ) : (
-              <a
-                href={`mailto:${site.email}`}
-                className="inline-flex h-11 items-center border-b border-white/30 text-xl transition-colors hover:border-white"
-              >
-                {site.email}
-              </a>
-            )}
+            {/* 連絡先の代わりにソースを置く。公開ページに個人情報を載せずに済み、
+                見た人がそのまま実装を読みに行ける。 */}
+            <a
+              href={site.source}
+              className="inline-flex h-11 items-center border-b border-white/30 text-xl transition-colors hover:border-white"
+            >
+              {site.source.replace(/^https:\/\//, '')}
+            </a>
             <p className="mt-4 font-mono text-[10px] tracking-[0.25em] text-white/30">
-              <Fill>{site.location}</Fill>
+              SOURCE · NEXT.JS + GSAP
             </p>
           </div>
         </div>

@@ -4,8 +4,8 @@ import { sans, serif, mono } from '../lib/fonts'
 import ParticleBackground from '../components/ParticleBackground'
 
 export const metadata: Metadata = {
-  // 本番ドメインが決まったら差し替える。OG 画像の絶対 URL 生成に使われる。
-  metadataBase: new URL('https://example.com'),
+  // OG 画像の絶対 URL 生成に使われる。公開先は GitHub Pages。
+  metadataBase: new URL('https://mgitgod.github.io/armillary/'),
   title: 'Orrery — Portfolio',
   description: 'A portfolio you operate, not scroll.',
   openGraph: {

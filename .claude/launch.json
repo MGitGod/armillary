@@ -7,6 +7,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "armillary-pages",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve-pages.mjs"],
+      "port": 4000
     }
   ]
 }
